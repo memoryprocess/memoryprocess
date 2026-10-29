@@ -1,0 +1,49 @@
+﻿{
+  "name": "@memoryprocess/bindings",
+  "version": "0.0.1",
+  "description": "Native N-API bindings for Windows process memory access (read/write, VirtualQueryEx, pattern scan, thread ops). The .node binary layer of the memoryprocess toolkit.",
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "prebuilds",
+    "binding.gyp",
+    "native"
+  ],
+  "os": [
+    "win32"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "clean": "node scripts/clean.mjs",
+    "check": "bun check",
+    "typecheck": "tsc --noEmit",
+    "prebuild:all": "prebuildify --all --napi",
+    "prepublishOnly": "npm run build && npm run prebuild:all"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/memoryprocess/memoryprocess.git",
+    "directory": "packages/bindings"
+  },
+  "author": "JoShMiQueL",
+  "license": "MIT",
+  "dependencies": {
+    "node-addon-api": "8.3.1",
+    "node-gyp-build": "4.8.4"
+  },
+  "trustedDependencies": [
+    "node-gyp-build"
+  ]
+}

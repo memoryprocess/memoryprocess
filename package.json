@@ -1,0 +1,41 @@
+﻿{
+  "name": "memoryprocess",
+  "private": true,
+  "description": "Windows process-memory toolkit — N-API bindings, Process engine, CLI, and MCP server. A ground-up rewrite of memoryjs.",
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "bun run --filter '@memoryprocess/bindings' build && bun run --filter '@memoryprocess/core' build",
+    "build:bindings": "bun run --filter '@memoryprocess/bindings' build",
+    "build:core": "bun run --filter '@memoryprocess/core' build",
+    "build:victim": "bun run --filter '@memoryprocess/core' build:victim",
+    "build:testdll": "bun run --filter '@memoryprocess/core' build:testdll",
+    "check": "bun run --filter '@memoryprocess/bindings' check && bun run --filter '@memoryprocess/core' check && bun run --filter '@memoryprocess/cli' check && bun run --filter '@memoryprocess/mcp' check",
+    "fmt": "bun fmt",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test",
+    "clean": "bun run --filter '*' clean"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "node-gyp": "12.4.0",
+    "prebuildify": "6.0.1",
+    "tsdown": "0.23.3",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "os": [
+    "win32"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/memoryprocess/memoryprocess.git"
+  },
+  "author": "JoShMiQueL",
+  "license": "MIT"
+}

@@ -16,3 +16,9 @@ packages/*/prebuilds/
 *.log
 .DS_Store
 Thumbs.db
+
+*.dll
+*.lib
+*.exp
+*.tgz
+packages/*/src/*.node

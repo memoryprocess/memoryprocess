@@ -1,0 +1,25 @@
+﻿{
+  "name": "@memoryprocess/mcp",
+  "version": "0.0.1",
+  "description": "MCP server exposing the memoryprocess toolkit to LLM agents — the primary agentic surface.",
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "private": true,
+  "bin": {
+    "memoryprocess-mcp": "./src/server.ts"
+  },
+  "scripts": {
+    "check": "bun check",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/memoryprocess/memoryprocess.git",
+    "directory": "packages/mcp"
+  },
+  "author": "JoShMiQueL",
+  "license": "MIT",
+  "os": [
+    "win32"
+  ]
+}
