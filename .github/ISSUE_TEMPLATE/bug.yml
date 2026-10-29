@@ -1,0 +1,44 @@
+name: 🐛 Bug report
+description: Something is broken in the memoryprocess toolkit
+title: 'bug: '
+labels: [bug]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      description: Which package is affected
+      options:
+        - '@memoryprocess/core'
+        - '@memoryprocess/bindings'
+        - '@memoryprocess/cli'
+        - '@memoryprocess/mcp'
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Expected vs actual behavior
+      placeholder: 'I called proc.readInt32(...) and expected X but got Y.'
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction
+      description: Minimal code or steps to reproduce
+      render: ts
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Windows version, Node/Bun version, package version
+      placeholder: 'Windows 11 24H2, Bun 1.4.4, @memoryprocess/core@0.0.1-dev.1'
+    validations:
+      required: true
+  - type: textarea
+    id: crash
+    attributes:
+      label: Crash details (if any)
+      description: Exit code / exception (e.g. 0xC0000005 access-violation)

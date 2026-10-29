@@ -1,0 +1,43 @@
+{
+  "release-type": "node",
+  "packages": {
+    "packages/bindings": {
+      "package-name": "@memoryprocess/bindings",
+      "release-type": "node",
+      "prerelease": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-path": "CHANGELOG.md",
+      "versioning": "default"
+    },
+    "packages/core": {
+      "package-name": "@memoryprocess/core",
+      "release-type": "node",
+      "prerelease": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-path": "CHANGELOG.md",
+      "versioning": "default"
+    },
+    "packages/cli": {
+      "package-name": "@memoryprocess/cli",
+      "release-type": "node",
+      "prerelease": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-path": "CHANGELOG.md",
+      "versioning": "default"
+    },
+    "packages/mcp": {
+      "package-name": "@memoryprocess/mcp",
+      "release-type": "node",
+      "prerelease": true,
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": true,
+      "changelog-path": "CHANGELOG.md",
+      "versioning": "default"
+    }
+  },
+  "plugins": ["node-workspace"],
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json"
+}
