@@ -26,6 +26,9 @@
       "bin": {
         "mproc": "./src/cli.ts",
       },
+      "dependencies": {
+        "@memoryprocess/core": "workspace:*",
+      },
     },
     "packages/core": {
       "name": "@memoryprocess/core",

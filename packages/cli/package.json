@@ -12,6 +12,9 @@
     "check": "bun check",
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@memoryprocess/core": "workspace:*"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/memoryprocess/memoryprocess.git",
