@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@memoryprocess/mcp",
   "version": "0.0.1",
   "description": "MCP server exposing the memoryprocess toolkit to LLM agents — the primary agentic surface.",

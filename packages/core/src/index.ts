@@ -1,4 +1,4 @@
-﻿export { Process, RegionView, encodeValue } from './process.js';
+export { Process, RegionView, encodeValue } from './process.js';
 export type {
   ProcessInfo,
   ModuleInfo,

@@ -15,8 +15,22 @@ const run = (cmd, args, shellCmd = false) => {
     throw new Error(`${cmd} ${args.join(' ')} failed (${r.status})`);
 };
 
-// resolve a node_modules tool's JS entrypoint (portable, no .bin shim needed)
-const tool = (pkg, binPath) => join(root, 'node_modules', pkg, binPath);
+// resolve a node_modules tool's JS entrypoint (portable, no .bin shim needed).
+// In the monorepo bun hoists deps to the ROOT node_modules, so check the
+// package's own node_modules first then walk up to the workspace root.
+const findTool = (pkg, binPath) => {
+  let dir = root;
+  for (let i = 0; i < 4; i++) {
+    const p = join(dir, 'node_modules', pkg, binPath);
+    if (existsSync(p)) return p;
+    const up = join(dir, '..');
+    if (up === dir) break;
+    dir = up;
+  }
+  // fall back to the package-local path for a clear error
+  return join(root, 'node_modules', pkg, binPath);
+};
+const tool = findTool;
 const nodeGypJs = tool('node-gyp', 'bin/node-gyp.js');
 const nodeGyp = () => {
   run(process.execPath, [nodeGypJs, 'clean']);
