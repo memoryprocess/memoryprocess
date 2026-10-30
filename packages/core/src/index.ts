@@ -9,6 +9,10 @@ export type {
   ScanValueOptions,
   ScanValueType,
   WriteValueType,
+  WriteOptions,
+  WritePreview,
+  WriteLogEntry,
+  ProcessDescribe,
   ThreadContext,
 } from './process.js';
 export { Protection, AllocationType, ProcessAccess } from './process.js';
