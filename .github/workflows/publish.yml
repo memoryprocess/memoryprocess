@@ -1,0 +1,52 @@
+name: Publish
+
+# Publishes released packages to npm on the `dev` channel only.
+# Triggered by release-please creating a per-package tag (<pkg>@x.y.z).
+# `latest` is NEVER set here — stable release is a separate, manually-gated step.
+on:
+  push:
+    tags:
+      - 'bindings@*'
+      - 'core@*'
+      - 'cli@*'
+      - 'mcp@*'
+
+permissions:
+  contents: read
+  id-token: write # OIDC for npm Trusted Publishing
+
+jobs:
+  publish:
+    name: publish ${{ matrix.package }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { package: bindings }
+          - { package: core }
+          - { package: cli }
+          - { package: mcp }
+    # Only the package whose tag fired the run publishes.
+    if: startsWith(github.ref_name, format('{0}@', matrix.package))
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - run: bun install
+      - name: build
+        working-directory: packages/${{ matrix.package }}
+        run: bun run build
+      - name: publish to npm (dev channel)
+        working-directory: packages/${{ matrix.package }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --tag dev

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * abuse3 â€” adversarial fuzz of the HIGH-LEVEL API (structs.ts):
  *   proc.addr / pointers / entity / entityList / readMany /
  *   findPointersTo / offsets (+ Address/Offsets/Entity/EntityList classes).

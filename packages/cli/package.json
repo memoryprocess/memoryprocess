@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@memoryprocess/cli",
   "version": "0.0.1",
   "description": "mproc — command-line interface for the memoryprocess toolkit (scan/read/write/pointers/watch with --json).",

@@ -36,8 +36,8 @@ jobs:
         run: bun run test
 
   # Per-Node-version native compat — the .node is ABI-tied to the Node that
-  # built it, so each leg rebuilds against its own headers then smokes the
-  # real API surface.
+  # built it, so each leg rebuilds the native binary via node-gyp against its
+  # own headers, then smokes the real API surface.
   compat:
     name: compat (${{ matrix.node }})
     if: ${{ !github.event.pull_request.draft }}
@@ -58,13 +58,10 @@ jobs:
       - run: bun install
       - name: rebuild .node for node ${{ matrix.node }}
         working-directory: packages/bindings
-        run: node scripts/build.mjs
+        run: node scripts/build-native.mjs
       - name: compat smoke (node ${{ matrix.node }})
         working-directory: packages/bindings
-        run: node tests/compat.smoke.mjs
-        # TODO: compat smoke script — exercises real API (RPM/WPM/alloc/scan)
-        # on the freshly built .node, not just require(). Placeholder until
-        # the compat tests move to packages/bindings/tests/.
+        run: node --test tests/compat.smoke.mjs
 
   packaged:
     name: packaged
@@ -78,11 +75,9 @@ jobs:
           bun-version-file: package.json
       - run: bun install
       - run: bun run build
-      - name: npm pack bindings + core
+      - name: npm pack bindings (dry check)
         working-directory: packages/bindings
-        run: npm pack
-      - name: clean-dir install + import check
-        run: |
-          # TODO: pack → install into a temp dir → import { Process }.
-          # Catches ESM-only exports (require() must fail by design) and
-          # missing files. Implemented when the publish pipeline lands.
+        run: npm pack --dry-run
+      - name: npm pack core (dry check)
+        working-directory: packages/core
+        run: npm pack --dry-run

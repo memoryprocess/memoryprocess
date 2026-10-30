@@ -1,4 +1,4 @@
-﻿/**
+/**
  * native-hardening â€” QA4 critical/high fixes, exercised through BOTH the
  * public Process API and the raw `native` binding (for the additive exports
  * the TS layer may not have wired into its interface yet).

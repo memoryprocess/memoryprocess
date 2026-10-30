@@ -1,0 +1,29 @@
+name: ✨ Feature request
+description: Suggest a new capability for the toolkit
+title: 'feat: '
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - '@memoryprocess/core'
+        - '@memoryprocess/bindings'
+        - '@memoryprocess/cli'
+        - '@memoryprocess/mcp'
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What do you want
+      description: The feature and the problem it solves
+    validations:
+      required: true
+  - type: textarea
+    id: api
+    attributes:
+      label: Proposed API (optional)
+      description: Sketch the method/command shape you imagine
+      render: ts
