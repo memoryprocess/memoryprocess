@@ -23,7 +23,15 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - run: bun install
+      # Cache bun's GLOBAL install cache (like ~/.npm) — a warm cache makes
+      # `bun install` ~2s instead of ~80s. Keyed on the lockfile.
+      - name: cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-buncache-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-buncache-
+      - run: bun install --frozen-lockfile
       - name: bun fmt (check)
         run: bun fmt --check
       - name: typecheck (all packages)
@@ -55,7 +63,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - run: bun install
+      - name: cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-buncache-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-buncache-
+      - run: bun install --frozen-lockfile
       - name: rebuild .node for node ${{ matrix.node }}
         working-directory: packages/bindings
         run: node scripts/build-native.mjs
@@ -73,7 +87,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
-      - run: bun install
+      - name: cache bun install cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-buncache-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-buncache-
+      - run: bun install --frozen-lockfile
       - run: bun run build
       - name: npm pack bindings (dry check)
         working-directory: packages/bindings
