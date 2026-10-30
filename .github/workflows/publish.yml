@@ -45,10 +45,8 @@ jobs:
       - name: build
         working-directory: packages/${{ matrix.package }}
         run: bun run build
-      # OIDC Trusted Publishing: no NODE_AUTH_TOKEN — the job's `id-token: write`
-      # permission lets npm exchange the GitHub OIDC token for a short-lived
-      # publish credential. Requires the Trusted Publisher configured on
-      # npmjs.com pointing at this workflow (publish.yml) for each package.
-      - name: publish to npm (dev channel, OIDC)
+      - name: publish to npm (dev channel)
         working-directory: packages/${{ matrix.package }}
-        run: npm publish --access public --tag dev --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --tag dev
