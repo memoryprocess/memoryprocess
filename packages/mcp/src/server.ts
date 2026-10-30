@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 /**
  * @memoryprocess/mcp — MCP server exposing the memoryprocess toolkit to
  * LLM agents over stdio (the primary agentic surface).

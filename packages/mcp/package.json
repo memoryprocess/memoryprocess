@@ -4,13 +4,28 @@
   "description": "MCP server exposing the memoryprocess toolkit to LLM agents — the primary agentic surface.",
   "type": "module",
   "packageManager": "bun@1.4.4",
-  "private": true,
   "bin": {
-    "memoryprocess-mcp": "./src/server.ts"
+    "memoryprocess-mcp": "./dist/server.mjs"
+  },
+  "exports": {
+    ".": "./dist/server.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "os": [
+    "win32"
+  ],
+  "engines": {
+    "node": ">=22"
   },
   "scripts": {
+    "build": "tsdown",
     "check": "bun check",
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "repository": {
     "type": "git",
@@ -19,8 +34,15 @@
   },
   "author": "JoShMiQueL",
   "license": "MIT",
-  "os": [
-    "win32"
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "memory",
+    "process",
+    "windows",
+    "reverse-engineering",
+    "llm",
+    "agent"
   ],
   "dependencies": {
     "@memoryprocess/core": "workspace:*",
