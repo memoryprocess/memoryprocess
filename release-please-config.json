@@ -5,20 +5,28 @@
   "prerelease": true,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
+  "separate-pull-requests": true,
+  "tag-separator": "@",
+  "include-v-in-tag": false,
+  "include-v-in-release-name": false,
   "packages": {
     "packages/bindings": {
+      "component": "bindings",
       "package-name": "@memoryprocess/bindings",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/core": {
+      "component": "core",
       "package-name": "@memoryprocess/core",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/cli": {
+      "component": "cli",
       "package-name": "@memoryprocess/cli",
       "changelog-path": "CHANGELOG.md"
     },
     "packages/mcp": {
+      "component": "mcp",
       "package-name": "@memoryprocess/mcp",
       "changelog-path": "CHANGELOG.md"
     }
