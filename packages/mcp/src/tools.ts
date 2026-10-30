@@ -174,9 +174,9 @@ function parseNumeric(
 
 /** Agent-facing type aliases -> core WriteValueType/ScanValueType. */
 const NUMERIC_TYPES: Record<string, string> = {
-  i8: 'uint8',
+  i8: 'int8',
   u8: 'uint8',
-  i16: 'uint16',
+  i16: 'int16',
   u16: 'uint16',
   i32: 'int32',
   u32: 'uint32',
@@ -774,6 +774,94 @@ const toolDefs: Record<string, ToolDef> = {
     },
   },
 
+  mem_scan_pattern: {
+    description:
+      'AOB signature scan: find all matches of a byte pattern like "48 8B ?? 10" ("??" wildcards). Returns {hits:[hexaddr],count,truncated}.',
+    schema: {
+      ...sessionArg,
+      pattern: z
+        .string()
+        .describe(
+          'byte pattern, hex bytes separated by spaces, "??" wildcards',
+        ),
+      module: z.string().optional().describe('restrict to a module'),
+      section: z
+        .string()
+        .optional()
+        .describe('restrict to a PE section of `module` (e.g. ".text")'),
+      start: addrArg.optional().describe('range start'),
+      end: addrArg.optional().describe('range end'),
+      onlyReadable: z
+        .boolean()
+        .optional()
+        .describe('only scan readable regions (default true)'),
+      limit: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe('max hits returned (default 1000)'),
+    },
+    handler: async (s, a) => {
+      const proc = s.get(a.session);
+      if (typeof a.pattern !== 'string' || !a.pattern.trim())
+        throw fail('INVALID_ARGS', 'mem_scan_pattern needs a pattern string');
+      const hits = await proc.scan(a.pattern, {
+        module: a.module as string | undefined,
+        section: a.section as string | undefined,
+        start:
+          a.start !== undefined
+            ? parseAddress(proc, a.start, 'start')
+            : undefined,
+        end: a.end !== undefined ? parseAddress(proc, a.end, 'end') : undefined,
+        onlyReadable: a.onlyReadable as boolean | undefined,
+      });
+      const limit = (a.limit as number | undefined) ?? 1000;
+      return {
+        count: hits.length,
+        truncated: hits.length > limit,
+        hits: hits.slice(0, limit).map((h) => hex(h)),
+      };
+    },
+  },
+
+  mem_regions: {
+    description:
+      "VirtualQueryEx map of the target's memory regions: [{base,size,protect,state,type}] — base/size are hex, protect/state/type are hex flag values. writableOnly/executableOnly filter on protection.",
+    schema: {
+      ...sessionArg,
+      writableOnly: z
+        .boolean()
+        .optional()
+        .describe('only regions whose protection allows writes'),
+      executableOnly: z
+        .boolean()
+        .optional()
+        .describe('only regions whose protection allows execution'),
+    },
+    handler: (s, a) => {
+      const proc = s.get(a.session);
+      const WRITABLE = 0x04 | 0x08 | 0x40 | 0x80; // RW|WRITECOPY|EXEC_RW|EXEC_WCOPY
+      const EXECUTABLE = 0x10 | 0x20 | 0x40 | 0x80; // EXECUTE|EXEC_READ|EXEC_RW|EXEC_WCOPY
+      let regions = proc.regions();
+      if (a.writableOnly === true)
+        regions = regions.filter((r) => (r.protection & WRITABLE) !== 0);
+      if (a.executableOnly === true)
+        regions = regions.filter((r) => (r.protection & EXECUTABLE) !== 0);
+      return {
+        count: regions.length,
+        // getRegions only walks MEM_COMMIT pages — state is always 0x1000.
+        regions: regions.map((r) => ({
+          base: hex(r.baseAddress),
+          size: hex(r.size),
+          protect: hex(r.protection),
+          state: hex(0x1000), // MEM_COMMIT
+          type: hex(r.type),
+        })),
+      };
+    },
+  },
+
   mem_pointer_resolve: {
     description:
       'Resolve module+rva plus a pointer chain: base = module base + rva, then dereference each offset (CE "module.exe+RVA, offsets" style).',
@@ -872,18 +960,38 @@ const toolDefs: Record<string, ToolDef> = {
           'INVALID_ARGS',
           `freeze needs a numeric type, got "${a.type}"`,
         );
-      const coreType =
-        type === 'int8' || type === 'int16'
-          ? type === 'int8'
-            ? 'uint8'
-            : 'uint16'
-          : type;
-      const stop = proc.freeze(
-        addr,
-        coreType as Parameters<Process['freeze']>[1],
-        parseNumeric(a.value, WIDE_TYPES.has(type)),
-        (a.ms as number | undefined) ?? 50,
-      );
+      const ms = (a.ms as number | undefined) ?? 50;
+      let stop: () => void;
+      if (
+        type === 'int8' ||
+        type === 'uint8' ||
+        type === 'int16' ||
+        type === 'uint16'
+      ) {
+        // proc.freeze() only supports the core VALUE_WIDTHS types — narrow ints
+        // tick via writeUInt8/16 (which mask to width, so negative i8 works).
+        const v = Number(parseNumeric(a.value, false));
+        const write =
+          type === 'int8' || type === 'uint8'
+            ? () => proc.writeUInt8(addr, v & 0xff)
+            : () => proc.writeUInt16(addr, v & 0xffff);
+        const timer = setInterval(() => {
+          try {
+            write();
+          } catch {
+            /* closed or unwritable — ignore */
+          }
+        }, ms);
+        if (typeof timer.unref === 'function') timer.unref();
+        stop = () => clearInterval(timer);
+      } else {
+        stop = proc.freeze(
+          addr,
+          type as Parameters<Process['freeze']>[1],
+          parseNumeric(a.value, WIDE_TYPES.has(type)),
+          ms,
+        );
+      }
       return { freezeId: s.addFreeze(a.session as string, stop) };
     },
   },
