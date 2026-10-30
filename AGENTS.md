@@ -44,6 +44,8 @@ This file distills the durable, repo-specific knowledge an agent (or contributor
 - Don't add a separate `sdk` package — the struct layer lives in `core` (empty convenience packages look amateur).
 - Don't publish `latest` manually — `publish.yml` derives the dist-tag from the version: prerelease → `dev`/`next`/`beta`, stable → `latest`. `latest` only fires via a maintainer `release-as` commit (docs/releasing.md).
 - Don't put backticks `` ` `` or `$` inside double-quoted PowerShell args for `gh pr create --body` — pwsh escapes/expand them into literal `\` junk in the body. **Always use `--body-file <file>`** (write the markdown to a temp file, pass the path). Same for commit messages — use `-F file` or write the file first.
+- **Workflow YAML files stay pure ASCII** — no `→`/`—`/smart quotes in `.github/workflows/*`: a UTF-8 glyph landed as `U+001A` in the pushed blob once and GitHub Actions loaded the workflow with **zero jobs** (invalid YAML control char). After pushing a workflow change, sanity-check the remote blob (`gh api .../contents/...yml`) — local file can look fine while remote is corrupt.
+- **release-please release PRs**: created by GITHUB_TOKEN → don't trigger CI (GitHub recursion guard). Close+reopen the PR to fire checks. Their generated CHANGELOG.md fails `bun fmt --check` — run `bun fmt` + commit on the release branch before merging. Tag format is `<pkg>@x.y.z` (config: `tag-separator:"@"` + `include-v-in-tag:false`); publish.yml runs the workflow **at the tagged commit** — a tag on a commit whose publish.yml is broken can never publish.
 
 ## PR workflow
 
