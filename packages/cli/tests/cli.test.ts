@@ -355,6 +355,145 @@ describe('mproc — attach session', () => {
   });
 });
 
+describe('mproc — introspection', () => {
+  test('--version prints name + semver', async () => {
+    const r = await mproc(['--version']);
+    expect(r.code).toBe(0);
+    expect(r.stdout.trim()).toMatch(/^@memoryprocess\/cli \d+\.\d+\.\d+/);
+    const r2 = await mproc(['-v']);
+    expect(r2.stdout.trim()).toBe(r.stdout.trim());
+  });
+
+  test('regions lists committed regions with hex bases', async () => {
+    const r = await mproc(['regions', String(victim.pid), '--json']);
+    expect(r.code).toBe(0);
+    const env = envelope(r.stdout);
+    expect(env.ok).toBe(true);
+    expect(env.data.length).toBeGreaterThan(0);
+    const reg = env.data[0];
+    expect(reg.base).toMatch(/^0x[0-9a-f]+$/);
+    expect(typeof reg.size).toBe('number');
+    expect(reg.state).toBe('MEM_COMMIT');
+    expect(reg.type).toMatch(/^MEM_|^0x/);
+    // victim.exe's image region must be in the walk
+    const mods = envelope(
+      (await mproc(['modules', String(victim.pid), '--json'])).stdout,
+    ).data;
+    const vbase = mods.find(
+      (m: { name: string }) => m.name === 'victim.exe',
+    ).base;
+    expect(env.data.some((x: { base: string }) => x.base === vbase)).toBe(true);
+  });
+
+  test('regions human table prints headers', async () => {
+    const r = await mproc(['regions', String(victim.pid)]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('BASE');
+    expect(r.stdout).toContain('PROTECT');
+    expect(r.stdout).toMatch(/0x[0-9a-f]+/);
+  });
+
+  test('threads lists numeric tids incl. a resumable one', async () => {
+    const r = await mproc(['threads', String(victim.pid), '--json']);
+    expect(r.code).toBe(0);
+    const env = envelope(r.stdout);
+    expect(env.ok).toBe(true);
+    expect(env.data.length).toBeGreaterThan(0);
+    expect(
+      env.data.every((t: { tid: number }) => Number.isInteger(t.tid)),
+    ).toBe(true);
+  });
+
+  test('suspend + resume round-trips a victim thread', async () => {
+    const tids = envelope(
+      (await mproc(['threads', String(victim.pid), '--json'])).stdout,
+    ).data.map((t: { tid: number }) => t.tid);
+    const tid = tids[0];
+    const s = await mproc([
+      'suspend',
+      String(victim.pid),
+      String(tid),
+      '--json',
+    ]);
+    expect(envelope(s.stdout).data).toMatchObject({ tid, suspended: true });
+    const rr = await mproc([
+      'resume',
+      String(victim.pid),
+      String(tid),
+      '--json',
+    ]);
+    expect(envelope(rr.stdout).data).toMatchObject({ tid, resumed: true });
+  });
+});
+
+describe('mproc — widened int types', () => {
+  test('read u8/u16/i8/i16 hit the narrow decode path', async () => {
+    for (const t of ['u8', 'u16', 'i8', 'i16']) {
+      const r = await mproc([
+        'read',
+        String(victim.pid),
+        `0x${victim.addr.g_u8!.toString(16)}`,
+        t,
+        '--json',
+      ]);
+      expect(r.code).toBe(0);
+      const env = envelope(r.stdout);
+      expect(env.ok).toBe(true);
+      expect(typeof env.data.value).toBe('number');
+    }
+    // known victim globals: g_u8 = 0x7f, g_u16 = 0xbeef
+    const u8 = envelope(
+      (
+        await mproc([
+          'read',
+          String(victim.pid),
+          `0x${victim.addr.g_u8!.toString(16)}`,
+          'u8',
+          '--json',
+        ])
+      ).stdout,
+    ).data.value;
+    expect(u8).toBe(0x7f);
+    const u16 = envelope(
+      (
+        await mproc([
+          'read',
+          String(victim.pid),
+          `0x${victim.addr.g_u16!.toString(16)}`,
+          'u16',
+          '--json',
+        ])
+      ).stdout,
+    ).data.value;
+    expect(u16).toBe(0xbeef);
+  });
+
+  test('write i8 round-trips through writeBuffer + undo', async () => {
+    const a = `0x${victim.addr.g_u8!.toString(16)}`;
+    const v0 = envelope(
+      (await mproc(['read', String(victim.pid), a, 'u8', '--json'])).stdout,
+    ).data.value;
+    const w = await mproc([
+      'write',
+      String(victim.pid),
+      a,
+      'i8',
+      '-5',
+      '--json',
+    ]);
+    expect(envelope(w.stdout).ok).toBe(true);
+    const back = envelope(
+      (await mproc(['read', String(victim.pid), a, 'i8', '--json'])).stdout,
+    ).data.value;
+    expect(back).toBe(-5);
+    await mproc(['undo', String(victim.pid), '1', '--json']);
+    const restored = envelope(
+      (await mproc(['read', String(victim.pid), a, 'u8', '--json'])).stdout,
+    ).data.value;
+    expect(restored).toBe(v0);
+  });
+});
+
 describe('mproc — errors', () => {
   test('unknown command → exit 1 with INVALID_ARGS envelope', async () => {
     const r = await mproc(['frobnicate', '--json']);

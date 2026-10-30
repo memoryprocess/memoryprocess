@@ -6,7 +6,11 @@
  *   140700000        decimal
  *   game.exe+0x1F2A3C  module+rva (resolved via the process module table)
  *
- * Type names: i32|u32|i64|u64|f32|f64|ptr|u8|u16|bytes:N|str|wstr
+ * Type names: i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr
+ *
+ * The narrow ints (i8|u8|i16|u16) are CLI-level pseudo-types: core has no
+ * readInt8/writeInt8 — commands.ts reads/writes them via readBuffer +
+ * Buffer LE (de)coding, the same way it already handles u8/u16.
  */
 import type { Process, ScanValueType, WriteValueType } from './core.js';
 
@@ -57,8 +61,33 @@ export function parseAddr(proc: Process, s: string): bigint {
   return a;
 }
 
-/** CLI type name → core WriteValueType (null = non-scalar pseudo-type). */
-export const TYPE_MAP: Record<string, WriteValueType | 'u8' | 'u16'> = {
+/**
+ * Narrow int pseudo-types — not core WriteValueTypes; commands.ts
+ * reads/writes them through readBuffer + Buffer LE (de)coding.
+ */
+export type NarrowType = 'i8' | 'u8' | 'i16' | 'u16';
+
+/** Byte width of a parsed scalar — used for pre-write journal snapshots. */
+export const TYPE_WIDTHS: Record<WriteValueType | NarrowType, number> = {
+  i8: 1,
+  u8: 1,
+  i16: 2,
+  u16: 2,
+  int32: 4,
+  uint32: 4,
+  float: 4,
+  int64: 8,
+  uint64: 8,
+  double: 8,
+  pointer: 8,
+};
+
+/** CLI type name → core WriteValueType or a narrow pseudo-type. */
+export const TYPE_MAP: Record<string, WriteValueType | NarrowType> = {
+  i8: 'i8',
+  u8: 'u8',
+  i16: 'i16',
+  u16: 'u16',
   i32: 'int32',
   u32: 'uint32',
   i64: 'int64',
@@ -66,24 +95,12 @@ export const TYPE_MAP: Record<string, WriteValueType | 'u8' | 'u16'> = {
   f32: 'float',
   f64: 'double',
   ptr: 'pointer',
-  u8: 'u8',
-  u16: 'u16',
 };
 
 export interface ParsedType {
   kind: 'scalar' | 'bytes' | 'str' | 'wstr';
-  /** core type name for scalar/u8/u16 */
-  core?:
-    | 'int32'
-    | 'uint32'
-    | 'int64'
-    | 'uint64'
-    | 'float'
-    | 'double'
-    | 'pointer'
-    | 'u8'
-    | 'u16'
-    | undefined;
+  /** core type name, or a narrow pseudo-type (i8|u8|i16|u16) */
+  core?: WriteValueType | NarrowType | undefined;
   /** bytes:N length */
   n?: number;
 }
@@ -102,25 +119,47 @@ export function parseType(s: string | undefined): ParsedType {
   const core = TYPE_MAP[t];
   if (!core)
     throw new UsageError(
-      `unknown type '${s}' — use i32|u32|i64|u64|f32|f64|ptr|u8|u16|bytes:N|str|wstr`,
+      `unknown type '${s}' — use i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr`,
     );
   return { kind: 'scalar', core };
 }
 
-/** Scan-capable type → core ScanValueType. */
+/**
+ * Scalar types readValueAt accepts — everything TYPE_MAP knows minus the
+ * narrow pseudo-types (i8|u8|i16|u16) which readValueAt would reject.
+ */
+export const READVALUE_TYPES = new Set<string>([
+  'int32',
+  'uint32',
+  'int64',
+  'uint64',
+  'float',
+  'double',
+  'pointer',
+]);
+
+/** Scalar types scanValue/nextScan accept ('pointer' is write-only). */
+const VALID_SCAN_TYPES: readonly ScanValueType[] = [
+  'int32',
+  'uint32',
+  'int64',
+  'uint64',
+  'float',
+  'double',
+];
+
+/** Scan-capable type → core ScanValueType (narrows + ptr are not scannable). */
 export function parseScanType(s: string | undefined): ScanValueType {
   const p = parseType(s ?? 'i32');
   if (
     p.kind !== 'scalar' ||
-    p.core === 'u8' ||
-    p.core === 'u16' ||
-    p.core === 'pointer' ||
-    p.core === undefined
+    p.core === undefined ||
+    !VALID_SCAN_TYPES.includes(p.core as ScanValueType)
   )
     throw new UsageError(
       `scan type must be i32|u32|i64|u64|f32|f64, got '${s}'`,
     );
-  return p.core;
+  return p.core as ScanValueType;
 }
 
 /**
