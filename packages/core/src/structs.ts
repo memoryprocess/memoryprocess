@@ -4,6 +4,8 @@ import type {
   ScanOptions,
   ScanValueOptions,
   ScanValueType,
+  WriteOptions,
+  WritePreview,
 } from './process.js';
 import { ScanError, MemoryProcessError, InvalidSchemaError } from './errors.js';
 
@@ -356,29 +358,32 @@ export class Address {
     return this.proc.readWideString(this.resolve(), maxChars);
   }
 
-  writeInt32(v: number): boolean {
-    return this.proc.writeInt32(this.resolve(), v);
+  writeInt32(v: number, opts?: WriteOptions): boolean | WritePreview {
+    return this.proc.writeInt32(this.resolve(), v, opts);
   }
-  writeUInt32(v: number): boolean {
-    return this.proc.writeUInt32(this.resolve(), v);
+  writeUInt32(v: number, opts?: WriteOptions): boolean | WritePreview {
+    return this.proc.writeUInt32(this.resolve(), v, opts);
   }
-  writeInt64(v: bigint): boolean {
-    return this.proc.writeInt64(this.resolve(), v);
+  writeInt64(v: bigint, opts?: WriteOptions): boolean | WritePreview {
+    return this.proc.writeInt64(this.resolve(), v, opts);
   }
-  writeUInt64(v: bigint): boolean {
-    return this.proc.writeUInt64(this.resolve(), v);
+  writeUInt64(v: bigint, opts?: WriteOptions): boolean | WritePreview {
+    return this.proc.writeUInt64(this.resolve(), v, opts);
   }
-  writeFloat(v: number): boolean {
-    return this.proc.writeFloat(this.resolve(), v);
+  writeFloat(v: number, opts?: WriteOptions): boolean | WritePreview {
+    return this.proc.writeFloat(this.resolve(), v, opts);
   }
-  writeDouble(v: number): boolean {
-    return this.proc.writeDouble(this.resolve(), v);
+  writeDouble(v: number, opts?: WriteOptions): boolean | WritePreview {
+    return this.proc.writeDouble(this.resolve(), v, opts);
   }
-  writePointer(v: bigint): boolean {
-    return this.proc.writePointer(this.resolve(), v);
+  writePointer(v: bigint, opts?: WriteOptions): boolean | WritePreview {
+    return this.proc.writePointer(this.resolve(), v, opts);
   }
-  writeBuffer(data: Buffer | Uint8Array): boolean {
-    return this.proc.writeBuffer(this.resolve(), data);
+  writeBuffer(
+    data: Buffer | Uint8Array,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.proc.writeBuffer(this.resolve(), data, opts);
   }
 
   toString(): string {
@@ -889,24 +894,28 @@ export class Entity {
   }
 
   /** Live-write a single field. */
-  write(name: string, value: number | bigint | string): boolean {
+  write(
+    name: string,
+    value: number | bigint | string,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     const f = this.fields.find((x) => x.name === name);
     if (!f) throw new RangeError(`unknown entity field ${name}`);
     const at = this.addr + BigInt(f.offset);
     if (typeof value === 'string') {
       if (f.type.startsWith('wstring:'))
-        return this.proc.writeWideString(at, value);
-      return this.proc.writeString(at, value);
+        return this.proc.writeWideString(at, value, opts);
+      return this.proc.writeString(at, value, 'utf8', opts);
     }
     const w =
       f.type === 'ref' || VALUE_READERS[f.type] !== undefined ? f.width : 0;
     if (!w) throw new TypeError(`field ${name} is not a scalar`);
     if (f.type === 'pointer' || f.type === 'ref')
       return this.ptrSize === 4
-        ? this.proc.writeUInt32(at, Number(BigInt(value) & 0xffffffffn))
-        : this.proc.writePointer(at, BigInt(value));
+        ? this.proc.writeUInt32(at, Number(BigInt(value) & 0xffffffffn), opts)
+        : this.proc.writePointer(at, BigInt(value), opts);
     if (f.type === 'int64' || f.type === 'uint64')
-      return this.proc.writePointer(at, BigInt(value));
+      return this.proc.writePointer(at, BigInt(value), opts);
     const buf = Buffer.alloc(w);
     if (f.type === 'float') buf.writeFloatLE(Number(value));
     else if (f.type === 'double') buf.writeDoubleLE(Number(value));
@@ -926,7 +935,7 @@ export class Entity {
         buf.writeUInt32LE(n);
       }
     }
-    return this.proc.writeBuffer(at, buf);
+    return this.proc.writeBuffer(at, buf, opts);
   }
 }
 

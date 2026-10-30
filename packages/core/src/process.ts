@@ -93,6 +93,47 @@ export interface HookHandle {
   stolen: Buffer;
 }
 
+/** Options accepted by every byte-write method. */
+export interface WriteOptions {
+  /**
+   * Preview only: read the CURRENT bytes at the target and return a
+   * {@link WritePreview} without touching the process. Agent-facing
+   * self-correction primitive — sanity-check `current` before committing.
+   */
+  dryRun?: boolean;
+}
+
+/** Result of a `{ dryRun: true }` write: what is there vs what would go there. */
+export interface WritePreview {
+  addr: bigint;
+  /** bytes currently at `addr` (zero-filled when the target is unreadable) */
+  current: Buffer;
+  /** bytes that would be written */
+  would: Buffer;
+  bytes: number;
+}
+
+/** One entry of {@link Process.writeLog}: a write's captured prior state. */
+export interface WriteLogEntry {
+  addr: bigint;
+  /** prior bytes, or null when the pre-write snapshot failed (can't undo) */
+  bytes: Buffer | null;
+  /** position in the ring buffer at snapshot time */
+  index: number;
+}
+
+/** JSON-safe self-description returned by {@link Process.describe}. */
+export interface ProcessDescribe {
+  pid: number;
+  /** 'x86' when the target runs under WOW64 */
+  arch: 'x64' | 'x86';
+  pointerSize: number;
+  modules: { name: string; base: string; size: number }[];
+  /** committed regions that are writable and/or executable — the interesting set */
+  rwxRegions: { base: string; size: number; protection: string }[];
+  threads: number[];
+}
+
 export interface ScanOptions {
   /** start address (default 0) */
   start?: number | bigint;
@@ -332,6 +373,12 @@ export class Process implements Disposable {
   // first's unhook would restore pre-hook bytes under the second's patch,
   // orphaning its stub). Cleared per unhook.
   #hookedSrcs = new Set<bigint>();
+  // Ring buffer of every byte-write's prior state — the self-correction
+  // primitive behind undo(). Bounded (drop oldest) so a long-lived process
+  // can't accumulate unbounded memory. `bytes===null` = pre-write snapshot
+  // failed, that write is not undoable.
+  #writeLog: { addr: bigint; bytes: Buffer | null }[] = [];
+  static readonly #WRITE_LOG_CAP = 256;
 
   private constructor(handle: number, pid: number) {
     this.#handle = handle;
@@ -541,54 +588,182 @@ export class Process implements Disposable {
   }
 
   // ---- writes ----
-  writeInt32(addr: number | bigint, v: number): boolean {
-    return this.#write(addr, 'int32', v);
+  //
+  // Every public write takes a trailing `opts?: WriteOptions`.
+  // `opts.dryRun` returns a {@link WritePreview} (current vs would-be bytes)
+  // WITHOUT writing — an agent previews, sanity-checks `current`, then
+  // commits. Real writes are journaled into `#writeLog` for {@link undo}.
+  writeInt32(
+    addr: number | bigint,
+    v: number,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.#write(addr, 'int32', v, opts);
   }
-  writeUInt32(addr: number | bigint, v: number): boolean {
-    return this.#write(addr, 'uint32', v);
+  writeUInt32(
+    addr: number | bigint,
+    v: number,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.#write(addr, 'uint32', v, opts);
   }
-  writeInt64(addr: number | bigint, v: bigint): boolean {
-    return this.#write(addr, 'int64', v);
+  writeInt64(
+    addr: number | bigint,
+    v: bigint,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.#write(addr, 'int64', v, opts);
   }
-  writeUInt64(addr: number | bigint, v: bigint): boolean {
-    return this.#write(addr, 'uint64', v);
+  writeUInt64(
+    addr: number | bigint,
+    v: bigint,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.#write(addr, 'uint64', v, opts);
   }
-  writeFloat(addr: number | bigint, v: number): boolean {
-    return this.#write(addr, 'float', v);
+  writeFloat(
+    addr: number | bigint,
+    v: number,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.#write(addr, 'float', v, opts);
   }
-  writeDouble(addr: number | bigint, v: number): boolean {
-    return this.#write(addr, 'double', v);
+  writeDouble(
+    addr: number | bigint,
+    v: number,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.#write(addr, 'double', v, opts);
   }
-  writePointer(addr: number | bigint, v: bigint): boolean {
-    return this.#write(addr, 'pointer', v);
+  writePointer(
+    addr: number | bigint,
+    v: bigint,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.#write(addr, 'pointer', v, opts);
   }
-  writeUInt8(addr: number | bigint, v: number): boolean {
-    return this.writeBuffer(addr, Buffer.from([v & 0xff]));
+  writeUInt8(
+    addr: number | bigint,
+    v: number,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.writeBuffer(addr, Buffer.from([v & 0xff]), opts);
   }
-  writeUInt16(addr: number | bigint, v: number): boolean {
+  writeUInt16(
+    addr: number | bigint,
+    v: number,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     const b = Buffer.alloc(2);
     b.writeUInt16LE(v & 0xffff);
-    return this.writeBuffer(addr, b);
+    return this.writeBuffer(addr, b, opts);
   }
 
   /** Write raw bytes. */
-  writeBuffer(addr: number | bigint, data: Buffer | Uint8Array): boolean {
+  writeBuffer(
+    addr: number | bigint,
+    data: Buffer | Uint8Array,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     this.assertOpen();
     checkAddr(addr);
     if (!(data instanceof Uint8Array))
       throw new TypeError('data must be a Buffer or Uint8Array');
-    const ok = native.writeBuffer(
-      this.#handle,
-      Number(addr),
-      Buffer.from(data),
-    );
+    const buf = Buffer.from(data);
+    if (opts?.dryRun) return this.#previewWrite(addr, buf);
+    this.#recordWrite(addr, buf.length);
+    const ok = native.writeBuffer(this.#handle, Number(addr), buf);
     if (!ok) throw new WriteError(addr);
     return ok;
   }
 
-  #write(addr: number | bigint, type: string, v: number | bigint): boolean {
+  /**
+   * Build a {@link WritePreview} for a dry-run write: reads the current bytes
+   * at `addr` (zero-filled when unreadable, so preview never throws on an
+   * unmapped target).
+   */
+  #previewWrite(addr: number | bigint, would: Buffer): WritePreview {
+    let current: Buffer;
+    try {
+      current = this.readBuffer(addr, would.length);
+    } catch {
+      current = Buffer.alloc(would.length);
+    }
+    return { addr: BigInt(addr), current, would, bytes: would.length };
+  }
+
+  /**
+   * Capture the pre-write bytes at `addr` into `#writeLog` so {@link undo}
+   * can restore them. A failed snapshot records `bytes:null` — that write is
+   * journaled but skipped by undo (can't restore what was never read).
+   */
+  #recordWrite(addr: number | bigint, len: number): void {
+    let bytes: Buffer | null;
+    try {
+      bytes = this.readBuffer(addr, len);
+    } catch {
+      bytes = null;
+    }
+    this.#writeLog.push({ addr: BigInt(addr), bytes });
+    if (this.#writeLog.length > Process.#WRITE_LOG_CAP) this.#writeLog.shift();
+  }
+
+  /**
+   * Read-only snapshot of the write journal: newest writes last, `index` is
+   * each entry's position at snapshot time. An agent inspects this to see
+   * exactly what it changed — the underlying array is never exposed.
+   */
+  get writeLog(): readonly WriteLogEntry[] {
+    return this.#writeLog.map((e, index) => ({
+      addr: e.addr,
+      bytes: e.bytes ? Buffer.from(e.bytes) : null,
+      index,
+    }));
+  }
+
+  /**
+   * Revert the last `count` journaled writes, most-recent first. Each entry's
+   * captured `bytes` are written back via {@link writeProtected} (the
+   * originals may live in a code/protected region where a plain write would
+   * fault). Entries whose pre-write snapshot failed (`bytes===null`) are
+   * skipped without counting. Returns how many writes were actually reverted.
+   * Restores are themselves journaled — a second undo() "redoes" the write.
+   */
+  undo(count = 1): number {
+    this.assertOpen();
+    if (!Number.isInteger(count) || count < 1)
+      throw new RangeError('count must be an integer >= 1');
+    // Pop the whole batch FIRST — the restore writes are themselves journaled,
+    // so interleaving pop/restore would make the second pop eat the restore's
+    // entry instead of the next original write.
+    const batch = this.#writeLog.splice(
+      Math.max(0, this.#writeLog.length - count),
+    );
+    batch.reverse(); // most-recent first
+    let reverted = 0;
+    for (const e of batch) {
+      if (e.bytes === null) continue;
+      try {
+        this.writeProtected(e.addr, e.bytes);
+        reverted++;
+      } catch {
+        /* target gone or region vanished — nothing more to do */
+      }
+    }
+    return reverted;
+  }
+
+  #write(
+    addr: number | bigint,
+    type: string,
+    v: number | bigint,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     this.assertOpen();
     checkAddr(addr);
+    const would = encodeValue(type as WriteValueType, v);
+    if (opts?.dryRun) return this.#previewWrite(addr, would);
+    this.#recordWrite(addr, would.length);
     const ok = native.writeValue(this.#handle, Number(addr), type, v);
     if (!ok) throw new WriteError(addr);
     return ok;
@@ -686,9 +861,15 @@ export class Process implements Disposable {
    * and restores EACH region's real old protection â€” a write spanning a
    * protection boundary no longer flattens the second region to the first's.
    */
-  writeProtected(addr: number | bigint, data: Buffer | Uint8Array): boolean {
+  writeProtected(
+    addr: number | bigint,
+    data: Buffer | Uint8Array,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     this.assertOpen();
     const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    if (opts?.dryRun) return this.#previewWrite(addr, buf);
+    this.#recordWrite(addr, buf.length);
     const r = native.writeProtectedMemory(
       this.#handle,
       Number(addr),
@@ -703,26 +884,38 @@ export class Process implements Disposable {
     return r.ok;
   }
   /** NOP `len` bytes at `addr` (0x90). */
-  nop(addr: number | bigint, len: number): boolean {
-    return this.writeProtected(addr, Buffer.alloc(len, 0x90));
+  nop(
+    addr: number | bigint,
+    len: number,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
+    return this.writeProtected(addr, Buffer.alloc(len, 0x90), opts);
   }
   /** Write an E9 relative jump from `src` to `dst` (5 bytes). Throws when `dst` is outside rel32 range. */
-  patchJump(src: number | bigint, dst: number | bigint): boolean {
+  patchJump(
+    src: number | bigint,
+    dst: number | bigint,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     const rel = BigInt(dst) - (BigInt(src) + 5n);
     checkRel32(rel);
     const buf = Buffer.alloc(5);
     buf[0] = 0xe9;
     buf.writeInt32LE(Number(rel), 1);
-    return this.writeProtected(src, buf);
+    return this.writeProtected(src, buf, opts);
   }
   /** Write an E8 relative call from `src` to `dst` (5 bytes). Throws when `dst` is outside rel32 range. */
-  patchCall(src: number | bigint, dst: number | bigint): boolean {
+  patchCall(
+    src: number | bigint,
+    dst: number | bigint,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     const rel = BigInt(dst) - (BigInt(src) + 5n);
     checkRel32(rel);
     const buf = Buffer.alloc(5);
     buf[0] = 0xe8;
     buf.writeInt32LE(Number(rel), 1);
-    return this.writeProtected(src, buf);
+    return this.writeProtected(src, buf, opts);
   }
 
   // ---- disasm / hooks / shellcode ----
@@ -1444,18 +1637,25 @@ export class Process implements Disposable {
     addr: number | bigint,
     str: string,
     encoding: 'utf8' | 'ascii' = 'utf8',
-  ): boolean {
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     return this.writeBuffer(
       addr,
       Buffer.concat([Buffer.from(str, encoding), Buffer.from([0])]),
+      opts,
     );
   }
 
   /** Write `str` as UTF-16LE plus a 00 00 terminator at `addr`. */
-  writeWideString(addr: number | bigint, str: string): boolean {
+  writeWideString(
+    addr: number | bigint,
+    str: string,
+    opts?: WriteOptions,
+  ): boolean | WritePreview {
     return this.writeBuffer(
       addr,
       Buffer.concat([Buffer.from(str, 'utf16le'), Buffer.from([0, 0])]),
+      opts,
     );
   }
 
@@ -2006,12 +2206,68 @@ export class Process implements Disposable {
   }
 
   /**
-   * Close the process handle. Idempotent; also stops freeze()/watch() timers.
-   * After close every member throws {@link ProcessClosedError}.
+   * Machine-readable self-description of the attached process — the object an
+   * agent orients on first. JSON-safe: every address is a `0x`-prefixed hex
+   * STRING (bigint doesn't survive JSON.stringify). `rwxRegions` is the
+   * interesting-to-agent subset of {@link regions}: committed pages that are
+   * writable and/or executable, with the protection as its Win32 constant
+   * name. Cost: one module snapshot + one VirtualQueryEx walk + one thread
+   * snapshot (~30ms) — don't call per-frame.
+   */
+  describe(): ProcessDescribe {
+    this.assertOpen();
+    const INTERESTING =
+      Protection.PAGE_READWRITE |
+      Protection.PAGE_WRITECOPY |
+      Protection.PAGE_EXECUTE |
+      Protection.PAGE_EXECUTE_READ |
+      Protection.PAGE_EXECUTE_READWRITE |
+      Protection.PAGE_EXECUTE_WRITECOPY;
+    const PROT_NAMES: [number, string][] = [
+      [Protection.PAGE_EXECUTE_READWRITE, 'PAGE_EXECUTE_READWRITE'],
+      [Protection.PAGE_EXECUTE_WRITECOPY, 'PAGE_EXECUTE_WRITECOPY'],
+      [Protection.PAGE_EXECUTE_READ, 'PAGE_EXECUTE_READ'],
+      [Protection.PAGE_EXECUTE, 'PAGE_EXECUTE'],
+      [Protection.PAGE_READWRITE, 'PAGE_READWRITE'],
+      [Protection.PAGE_WRITECOPY, 'PAGE_WRITECOPY'],
+      [Protection.PAGE_READONLY, 'PAGE_READONLY'],
+      [Protection.PAGE_NOACCESS, 'PAGE_NOACCESS'],
+    ];
+    const hex = (v: number | bigint): string => `0x${BigInt(v).toString(16)}`;
+    const modules = this.modules().map((m) => ({
+      name: m.path.split(/[\\/]/).pop()!,
+      base: hex(m.base),
+      size: m.size,
+    }));
+    const rwxRegions = this.regions()
+      .filter((r) => (r.protection & INTERESTING) !== 0)
+      .map((r) => {
+        const base = r.protection & 0xff;
+        const named = PROT_NAMES.find(([v]) => v === base)?.[1];
+        const prot =
+          (named ?? `0x${base.toString(16)}`) +
+          (r.protection & Protection.PAGE_GUARD ? '|PAGE_GUARD' : '');
+        return { base: hex(r.baseAddress), size: r.size, protection: prot };
+      });
+    return {
+      pid: this.pid,
+      arch: this.isWow64 ? 'x86' : 'x64',
+      pointerSize: this.pointerSize,
+      modules,
+      rwxRegions,
+      threads: this.threads(),
+    };
+  }
+
+  /**
+   * Close the process handle. Idempotent; also stops freeze()/watch() timers
+   * and clears the write journal. After close every member throws
+   * {@link ProcessClosedError}.
    */
   close(): void {
     for (const t of this.#timers) clearInterval(t);
     this.#timers.clear();
+    this.#writeLog = [];
     if (this.#handle) {
       const h = this.#handle;
       this.#handle = 0;
