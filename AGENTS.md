@@ -43,3 +43,10 @@ This file distills the durable, repo-specific knowledge an agent (or contributor
 - Don't rename back to `hacks`/`cheat-dev` vocabulary — the layer is `structs.ts`, remote-struct/introspection.
 - Don't add a separate `sdk` package — the struct layer lives in `core` (empty convenience packages look amateur).
 - Don't publish `latest` — release channels are `dev`/`next` until stable is authorized.
+- Don't put backticks `` ` `` or `$` inside double-quoted PowerShell args for `gh pr create --body` — pwsh escapes/expand them into literal `\` junk in the body. **Always use `--body-file <file>`** (write the markdown to a temp file, pass the path). Same for commit messages — use `-F file` or write the file first.
+
+## PR workflow
+
+- Body: write markdown to a temp file (`$env:TEMP\opencode\prN.md` UTF-8 no-BOM), `gh pr create/edit --body-file`. Never inline `--body "..."` with backticks.
+- Follow `.github/PULL_REQUEST_TEMPLATE.md` — What / Why / Checklist / Release note. Fill the checklist boxes you actually did (`- [x]`), don't leave the boilerplate `- [ ]` empty.
+- Merge: `gh pr merge <n> --squash --delete-branch`. main requires ALL of: `verify`, `packaged`, `compat (22|24|25|26)` + `strict` (up-to-date) + linear history + conversations resolved. No force-push, no deletion, no direct pushes.
