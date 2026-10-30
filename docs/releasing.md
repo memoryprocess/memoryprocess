@@ -14,6 +14,18 @@ release-please (manifest mode) versions each package independently. With `versio
 
 **The `latest` gate:** nothing here ever `npm dist-tag ... latest` or publishes a non-prerelease version automatically. Promoting `dev`→`latest` is a manual `npm dist-tag add @memoryprocess/<pkg>@X.Y.Z latest` the maintainer triggers.
 
+## Promoting dev → latest (a real stable release)
+
+`latest` publishes are automatable, but the _decision_ to mark something stable stays manual — a bad merge should never auto-promote to `latest`. The flow, when you decide `main` is release-ready:
+
+1. Pin the version in `release-please-config.json` — add `"release-as": "X.Y.Z"` to the package(s) you're stabilizing (e.g. `"release-as": "1.0.0"`).
+2. Open a normal PR with that change → merge.
+3. release-please opens a release PR proposing `X.Y.Z` (a **stable** version, not `-dev`) → merge → it tags `pkg@X.Y.Z`.
+4. `publish.yml` fires on that tag. **To publish to `latest` (not `dev`), the workflow picks the tag from the version**: a non-prerelease version → `--tag latest`; a `-dev`/`-next` version → `--tag dev`/`next`. The maintainer-authored `release-as` is the trigger — nothing reaches `latest` without it.
+5. Remove `release-as` after (next merge re-versions normally to `-dev.N`).
+
+So `latest` is gated on a deliberate `release-as` commit — automated once you pull the trigger, never auto-promoted by a merge. `dev`/`next`/`beta` stay auto channels.
+
 ## Hotfix flow (critical bug on a released stable)
 
 Once a `latest` version exists, a critical fix shouldn't go through `main`'s dev line (which may have unrelated half-work). The model:
