@@ -1,6 +1,6 @@
 {
   "packages/bindings": "0.0.2-dev",
-  "packages/core": "0.0.2-dev",
+  "packages/core": "0.0.2-dev.1",
   "packages/cli": "0.0.2-dev",
   "packages/mcp": "0.0.2-dev"
 }
