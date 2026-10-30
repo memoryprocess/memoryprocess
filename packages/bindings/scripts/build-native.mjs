@@ -7,7 +7,19 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const nodeGypJs = join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
+// Bun hoists deps to the workspace root — walk up to find node-gyp.
+const findNodeGyp = () => {
+  let dir = root;
+  for (let i = 0; i < 4; i++) {
+    const p = join(dir, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
+    if (existsSync(p)) return p;
+    const up = join(dir, '..');
+    if (up === dir) break;
+    dir = up;
+  }
+  return join(root, 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
+};
+const nodeGypJs = findNodeGyp();
 
 const run = (args) => {
   const r = spawnSync(process.execPath, args, { cwd: root, stdio: 'inherit' });

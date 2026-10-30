@@ -1,6 +1,7 @@
 name: Publish
 
 # Publishes released packages to npm on the `dev` channel only.
+# Triggered by release-please creating a per-package tag (<pkg>@x.y.z).
 # `latest` is NEVER set here — stable release is a separate, manually-gated step.
 on:
   push:
@@ -14,9 +15,6 @@ permissions:
   contents: read
   id-token: write # OIDC for npm Trusted Publishing
 
-concurrency:
-  group: publish-${{ github.ref }}
-
 jobs:
   publish:
     name: publish ${{ matrix.package }}
@@ -26,12 +24,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { package: bindings, tag_match: 'bindings@' }
-          - { package: core, tag_match: 'core@' }
-          - { package: cli, tag_match: 'cli@' }
-          - { package: mcp, tag_match: 'mcp@' }
-    # Only publish the package whose tag fired the run.
-    if: startsWith(github.ref_name, matrix.tag_match)
+          - { package: bindings }
+          - { package: core }
+          - { package: cli }
+          - { package: mcp }
+    # Only the package whose tag fired the run publishes.
+    if: startsWith(github.ref_name, format('{0}@', matrix.package))
     steps:
       - uses: actions/checkout@v7
         with:
@@ -50,5 +48,5 @@ jobs:
       - name: publish to npm (dev channel)
         working-directory: packages/${{ matrix.package }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }} # or OIDC once Trusted Publishing is configured
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public --tag dev
