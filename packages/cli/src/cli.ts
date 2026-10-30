@@ -8,13 +8,27 @@
  * human table. `mproc attach <pid>` holds a Process open and takes commands on
  * stdin — that's the agentic session surface.
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { fail } from './out.js';
 import { UsageError, parseFlags } from './parse.js';
 import { COMMANDS, runCommand, USAGE } from './commands.js';
 import { attach } from './session.js';
 
+const pkg = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'),
+    'utf8',
+  ),
+) as { name: string; version: string };
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
+  if (argv.includes('--version') || argv.includes('-v')) {
+    console.log(`${pkg.name} ${pkg.version}`);
+    return 0;
+  }
   const { flags, pos } = parseFlags(argv);
   if (flags.rest.length)
     throw new UsageError(`unknown flag(s): ${flags.rest.join(' ')}`);

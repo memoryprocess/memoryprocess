@@ -5,7 +5,13 @@
  * Process closed by the dispatcher, in `attach` mode it's the persistent one.
  * Handlers never open/close themselves.
  */
-import { Process, type ScanHit, type WritePreview } from './core.js';
+import {
+  Process,
+  Protection,
+  type ScanHit,
+  type WritePreview,
+  type WriteValueType,
+} from './core.js';
 import {
   UsageError,
   parseAddr,
@@ -15,7 +21,10 @@ import {
   parseScanType,
   parseType,
   parseValue,
+  READVALUE_TYPES,
+  TYPE_WIDTHS,
   type Flags,
+  type NarrowType,
 } from './parse.js';
 import { cap, emitLine, emitOk, emitProgress, hex, table } from './out.js';
 import {
@@ -49,6 +58,55 @@ function needPos(ctx: Ctx, n: number, usage: string): void {
 function num(v: number | bigint): number | string {
   return typeof v === 'bigint' ? hex(v) : v;
 }
+
+/* ---- narrow int pseudo-types (i8|u8|i16|u16) ----
+ * readValueAt/writeValue only speak 4/8-byte core types — the narrows go
+ * through readBuffer/writeBuffer with Buffer LE (de)coding. Exported for
+ * session.ts (attach-mode watch/freeze). */
+export function readNarrow(
+  proc: Process,
+  addr: bigint,
+  type: NarrowType,
+): number {
+  switch (type) {
+    case 'i8':
+      return proc.readBuffer(addr, 1).readInt8(0);
+    case 'u8':
+      return proc.readBuffer(addr, 1).readUInt8(0);
+    case 'i16':
+      return proc.readBuffer(addr, 2).readInt16LE(0);
+    case 'u16':
+      return proc.readBuffer(addr, 2).readUInt16LE(0);
+  }
+}
+
+export function writeNarrow(
+  proc: Process,
+  addr: bigint,
+  type: NarrowType,
+  v: number | bigint,
+  opts: { dryRun: boolean },
+): boolean | WritePreview {
+  const b = Buffer.alloc(TYPE_WIDTHS[type]);
+  switch (type) {
+    case 'i8':
+      b.writeInt8(Number(v));
+      break;
+    case 'u8':
+      b.writeUInt8(Number(v));
+      break;
+    case 'i16':
+      b.writeInt16LE(Number(v));
+      break;
+    case 'u16':
+      b.writeUInt16LE(Number(v));
+      break;
+  }
+  return proc.writeBuffer(addr, b, opts);
+}
+
+export const isNarrow = (core: string | undefined): core is NarrowType =>
+  core === 'i8' || core === 'u8' || core === 'i16' || core === 'u16';
 
 /* ---------------- list ---------------- */
 function cmdList(ctx: Ctx): void {
@@ -94,6 +152,96 @@ function cmdDescribe(ctx: Ctx): void {
   console.log(`rwxRegions: ${d.rwxRegions.length}`);
 }
 
+/* ---------------- regions ---------------- */
+const PROT_NAMES: [number, string][] = [
+  [Protection.PAGE_EXECUTE_READWRITE, 'PAGE_EXECUTE_READWRITE'],
+  [Protection.PAGE_EXECUTE_WRITECOPY, 'PAGE_EXECUTE_WRITECOPY'],
+  [Protection.PAGE_EXECUTE_READ, 'PAGE_EXECUTE_READ'],
+  [Protection.PAGE_EXECUTE, 'PAGE_EXECUTE'],
+  [Protection.PAGE_READWRITE, 'PAGE_READWRITE'],
+  [Protection.PAGE_WRITECOPY, 'PAGE_WRITECOPY'],
+  [Protection.PAGE_READONLY, 'PAGE_READONLY'],
+  [Protection.PAGE_NOACCESS, 'PAGE_NOACCESS'],
+];
+
+const MEM_TYPES: [number, string][] = [
+  [0x1000000, 'MEM_IMAGE'],
+  [0x40000, 'MEM_MAPPED'],
+  [0x20000, 'MEM_PRIVATE'],
+];
+
+/** 'PAGE_READWRITE|PAGE_GUARD' or '0x…' for an unnamed protection mask. */
+function protName(protection: number): string {
+  const base = protection & 0xff;
+  const named = PROT_NAMES.find(([v]) => v === base)?.[1];
+  return (
+    (named ?? `0x${base.toString(16)}`) +
+    (protection & Protection.PAGE_GUARD ? '|PAGE_GUARD' : '')
+  );
+}
+
+function cmdRegions(ctx: Ctx): void {
+  const proc = ctx.proc!;
+  // regions() only walks committed allocations — state is always MEM_COMMIT.
+  const regs = proc.regions().map((r) => ({
+    base: hex(r.baseAddress),
+    size: r.size,
+    protect: protName(r.protection),
+    state: 'MEM_COMMIT',
+    type:
+      MEM_TYPES.find(([v]) => v === r.type)?.[1] ?? `0x${r.type.toString(16)}`,
+  }));
+  if (ctx.flags.json) return ok(ctx, regs);
+  const [shown, omitted] = cap(regs, 60);
+  console.log(
+    table(
+      shown.map((r) => [r.base, String(r.size), r.protect, r.state, r.type]),
+      ['BASE', 'SIZE', 'PROTECT', 'STATE', 'TYPE'],
+    ),
+  );
+  if (omitted) console.log(`… ${omitted} more`);
+  console.log(`${regs.length} regions`);
+}
+
+/* ---------------- threads / suspend / resume ---------------- */
+function cmdThreads(ctx: Ctx): void {
+  const tids = ctx.proc!.threads();
+  if (ctx.flags.json)
+    return ok(
+      ctx,
+      tids.map((tid) => ({ tid })),
+    );
+  console.log(
+    table(
+      tids.map((t) => [t]),
+      ['TID'],
+    ),
+  );
+  console.log(`${tids.length} threads`);
+}
+
+function tidArg(ctx: Ctx, usage: string): number {
+  needPos(ctx, 1, usage);
+  const v = Number(parseIntArg(ctx.pos[0]!, 'tid'));
+  if (!Number.isInteger(v) || v <= 0)
+    throw new UsageError(`invalid tid '${ctx.pos[0]}'`);
+  return v;
+}
+
+function cmdSuspend(ctx: Ctx): void {
+  const tid = tidArg(ctx, 'mproc suspend <pid> <tid>');
+  const ok_ = ctx.proc!.suspendThread(tid);
+  if (ctx.flags.json) return ok(ctx, { tid, suspended: ok_ });
+  console.log(`tid ${tid} ${ok_ ? 'suspended' : 'suspend failed'}`);
+}
+
+function cmdResume(ctx: Ctx): void {
+  const tid = tidArg(ctx, 'mproc resume <pid> <tid>');
+  const ok_ = ctx.proc!.resumeThread(tid);
+  if (ctx.flags.json) return ok(ctx, { tid, resumed: ok_ });
+  console.log(`tid ${tid} ${ok_ ? 'resumed' : 'resume failed'}`);
+}
+
 /* ---------------- read ---------------- */
 function cmdRead(ctx: Ctx): void {
   needPos(ctx, 1, 'mproc read <pid> <addr> [type]');
@@ -130,11 +278,8 @@ function cmdRead(ctx: Ctx): void {
       case 'pointer':
         value = proc.readPointer(addr);
         break;
-      case 'u8':
-        value = proc.readUInt8(addr);
-        break;
-      case 'u16':
-        value = proc.readUInt16(addr);
+      default:
+        value = readNarrow(proc, addr, t.core as NarrowType);
         break;
     }
   }
@@ -168,16 +313,7 @@ function cmdWrite(ctx: Ctx): void {
         ? (raw.length + 1) * 2
         : t.kind === 'str'
           ? Buffer.byteLength(raw) + 1
-          : t.core === 'int64' ||
-              t.core === 'uint64' ||
-              t.core === 'pointer' ||
-              t.core === 'double'
-            ? 8
-            : t.core === 'u8'
-              ? 1
-              : t.core === 'u16'
-                ? 2
-                : 4;
+          : (TYPE_WIDTHS[t.core!] ?? 4);
   let priorBytes: string | null = null;
   if (!ctx.flags.dry) {
     try {
@@ -197,6 +333,8 @@ function cmdWrite(ctx: Ctx): void {
     r = proc.writeString(addr, raw, 'utf8', opts);
   } else if (t.kind === 'wstr') {
     r = proc.writeWideString(addr, raw, opts);
+  } else if (isNarrow(t.core)) {
+    r = writeNarrow(proc, addr, t.core, parseValue(raw, t.core), opts);
   } else {
     const v = parseValue(raw, t.core!);
     switch (t.core) {
@@ -220,12 +358,6 @@ function cmdWrite(ctx: Ctx): void {
         break;
       case 'pointer':
         r = proc.writePointer(addr, BigInt(v), opts);
-        break;
-      case 'u8':
-        r = proc.writeUInt8(addr, Number(v), opts);
-        break;
-      case 'u16':
-        r = proc.writeUInt16(addr, Number(v), opts);
         break;
     }
     r ??= false;
@@ -267,8 +399,10 @@ async function cmdScan(ctx: Ctx): Promise<void> {
   const hits = await proc.scanValue(value, {
     type,
     module: ctx.flags.module,
-    start: ctx.flags.start ? BigInt(ctx.flags.start) : undefined,
-    end: ctx.flags.end ? BigInt(ctx.flags.end) : undefined,
+    // parseAddr (not bare BigInt) so '--start victim.exe+0x1000' resolves
+    // against the module table like every other address argument.
+    start: ctx.flags.start ? parseAddr(proc, ctx.flags.start) : undefined,
+    end: ctx.flags.end ? parseAddr(proc, ctx.flags.end) : undefined,
   });
   const limit = ctx.flags.limit ?? hits.length;
   const shown = hits.slice(0, limit);
@@ -443,7 +577,10 @@ async function cmdWatch(ctx: Ctx): Promise<void> {
   // positional disambiguation: pos[1] is a type name or the interval
   let typeName = 'i32';
   let msPos: string | undefined;
-  if (ctx.pos[1] && /^(i32|u32|i64|u64|f32|f64|ptr)$/i.test(ctx.pos[1])) {
+  if (
+    ctx.pos[1] &&
+    /^(i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr)$/i.test(ctx.pos[1])
+  ) {
     typeName = ctx.pos[1].toLowerCase();
     msPos = ctx.pos[2];
   } else {
@@ -455,13 +592,8 @@ async function cmdWatch(ctx: Ctx): Promise<void> {
       `watch interval must be an integer >= 1, got '${msPos}'`,
     );
   const t = parseType(typeName);
-  const core: string =
-    t.kind === 'scalar' &&
-    t.core !== undefined &&
-    t.core !== 'u8' &&
-    t.core !== 'u16'
-      ? t.core
-      : 'int32';
+  const core: string | undefined =
+    t.kind === 'scalar' && t.core !== undefined ? t.core : 'int32';
   if (ctx.flags.json)
     emitLine({ type: 'watch', addr: hex(addr), valueType: core, ms });
   else
@@ -473,7 +605,9 @@ async function cmdWatch(ctx: Ctx): Promise<void> {
     const t2 = setInterval(() => {
       let cur: number | bigint;
       try {
-        cur = proc.readValueAt(addr, core);
+        cur = isNarrow(core)
+          ? readNarrow(proc, addr, core)
+          : proc.readValueAt(addr, core!);
       } catch {
         return; // target may have exited — keep waiting for Ctrl-C
       }
@@ -506,17 +640,33 @@ async function cmdFreeze(ctx: Ctx): Promise<void> {
   const proc = ctx.proc!;
   const addr = parseAddr(proc, ctx.pos[0]!);
   const p = parseType(ctx.pos[1]);
-  if (p.kind !== 'scalar' || p.core === 'u8' || p.core === 'u16')
+  if (p.kind !== 'scalar' || p.core === undefined)
     throw new UsageError(
-      `freeze type must be i32|u32|i64|u64|f32|f64|ptr, got '${ctx.pos[1]}'`,
+      `freeze type must be i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr, got '${ctx.pos[1]}'`,
     );
-  const v = parseValue(ctx.pos[2]!, p.core!);
+  const v = parseValue(ctx.pos[2]!, p.core);
   const ms = ctx.flags.ms ?? (ctx.pos[3] ? Number(ctx.pos[3]) : 50);
   const value =
     p.core === 'int64' || p.core === 'uint64' || p.core === 'pointer'
       ? BigInt(v)
       : Number(v);
-  proc.freeze(addr, p.core!, value, ms);
+  if (isNarrow(p.core)) {
+    // freeze() only speaks 4/8-byte core types — narrow freeze is the same
+    // re-write loop over writeNarrow, self-clearing via a WeakRef like core's.
+    const self = new WeakRef(proc);
+    const timer = setInterval(() => {
+      const pr = self.deref();
+      if (!pr) return clearInterval(timer);
+      try {
+        writeNarrow(pr, addr, p.core as NarrowType, value, { dryRun: false });
+      } catch {
+        /* closed or unwritable — ignore */
+      }
+    }, ms);
+    timer.unref();
+  } else {
+    proc.freeze(addr, p.core as WriteValueType, value, ms);
+  }
   if (ctx.flags.json) emitLine({ type: 'freeze', addr: hex(addr), ms });
   else
     console.error(
@@ -554,6 +704,10 @@ async function cmdEntities(ctx: Ctx): Promise<void> {
 const PID_COMMANDS = new Set([
   'modules',
   'describe',
+  'regions',
+  'threads',
+  'suspend',
+  'resume',
   'read',
   'write',
   'scan',
@@ -570,6 +724,10 @@ export const COMMANDS: Record<string, Handler> = {
   list: cmdList,
   modules: cmdModules,
   describe: cmdDescribe,
+  regions: cmdRegions,
+  threads: cmdThreads,
+  suspend: cmdSuspend,
+  resume: cmdResume,
   read: cmdRead,
   write: cmdWrite,
   scan: cmdScan,
@@ -587,19 +745,23 @@ export const USAGE = `mproc — memoryprocess CLI
   mproc list                                  running processes
   mproc modules <pid>                         loaded modules
   mproc describe <pid>                        process profile (JSON-safe)
-  mproc read <pid> <addr> [type]              typed read (i32|u32|i64|u64|f32|f64|ptr|u8|u16|bytes:N|str|wstr)
+  mproc regions <pid>                         committed memory regions
+  mproc threads <pid>                         thread ids
+  mproc suspend <pid> <tid>                   suspend a thread
+  mproc resume <pid> <tid>                    resume a thread
+  mproc read <pid> <addr> [type]              typed read (i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr)
   mproc write <pid> <addr> <type> <value> [--dry]
   mproc scan <pid> <value> [type] [--module m | --start a --end b] [--out f] [--limit n]   CE-style value scan → .mproc/scan-<pid>.json
   mproc next <pid> <file> <mode> [args]          refine: exact V|changed|unchanged|increased|decreased|increasedBy V|decreasedBy V|between LO HI
   mproc pointers <pid> '<name>:<mod+rva,off,off>'…   resolve named chains
   mproc watch <pid> <addr> [type] [ms]        stream value changes (Ctrl-C ends)
-  mproc freeze <pid> <addr> <type> <value> [ms]    keep re-writing (Ctrl-C ends)
+  mproc freeze <pid> <addr> <type> <value> [ms]    keep re-writing (Ctrl-C ends); narrows i8|u8|i16|u16 too
   mproc undo <pid> [n]                        revert last n journaled writes
   mproc journal <pid>                         show the persisted write journal
   mproc entities <pid> <addr> <stride|next:OFF> [max]
   mproc attach <pid>                          session: hold Process open, one command per stdin line
 
-addr := 0x… | decimal | mod+rva   flags: --json --dry --out f --limit n --ms t --module m --start a --end b
+addr := 0x… | decimal | mod+rva   flags: --json --dry --out f --limit n --ms t --module m --start a --end b --version
 `;
 
 /**

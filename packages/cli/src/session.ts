@@ -16,10 +16,10 @@
  * processes in one-shot mode but interval timers inside an attach session
  * keep running until `unwatch`/`unfreeze`/`exit`.
  */
-import { Process } from './core.js';
+import { Process, type WriteValueType } from './core.js';
 import { UsageError, parseAddr, parseType, parseValue } from './parse.js';
 import { emitLine, emitOk, hex } from './out.js';
-import { runCommand } from './commands.js';
+import { isNarrow, runCommand, writeNarrow } from './commands.js';
 import { createInterface } from 'node:readline';
 
 /** Extra commands only meaningful inside a live session. */
@@ -37,19 +37,16 @@ async function sessionCommand(
       // session watch: starts a background watcher, returns immediately
       if (!rest[0]) throw new UsageError('watch <addr> [type] [ms]');
       const addr = parseAddr(proc, rest[0]);
+      const TYPE_RE = /^(i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr)$/i;
       const t =
-        rest[1] && /^(i32|u32|i64|u64|f32|f64|ptr)$/i.test(rest[1])
+        rest[1] && TYPE_RE.test(rest[1])
           ? parseType(rest[1])
           : parseType('i32');
       const ms = Number(
-        rest[1] && !/^(i32|u32|i64|u64|f32|f64|ptr)$/i.test(rest[1])
-          ? rest[1]
-          : (rest[2] ?? 50),
+        rest[1] && !TYPE_RE.test(rest[1]) ? rest[1] : (rest[2] ?? 50),
       );
       const core =
-        t.kind === 'scalar' && t.core !== 'u8' && t.core !== 'u16'
-          ? t.core
-          : 'int32';
+        t.kind === 'scalar' && t.core !== undefined ? t.core : 'int32';
       const id = watchers.size + 1;
       const stop = proc.watch(
         addr,
@@ -90,16 +87,34 @@ async function sessionCommand(
         throw new UsageError('freeze <addr> <type> <value> [ms]');
       const addr = parseAddr(proc, rest[0]);
       const p = parseType(rest[1]);
-      if (p.kind !== 'scalar' || p.core === 'u8' || p.core === 'u16')
-        throw new UsageError(`freeze type must be i32|u32|i64|u64|f32|f64|ptr`);
-      const v = parseValue(rest[2], p.core!);
+      if (p.kind !== 'scalar' || p.core === undefined)
+        throw new UsageError(
+          `freeze type must be i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr`,
+        );
+      const v = parseValue(rest[2], p.core);
       const ms = Number(rest[3] ?? 50);
       const value =
         p.core === 'int64' || p.core === 'uint64' || p.core === 'pointer'
           ? BigInt(v)
           : Number(v);
       const id = freezes.size + 1;
-      const stop = proc.freeze(addr, p.core!, value, ms);
+      // narrow types: same re-write loop over writeNarrow — freeze() itself
+      // only speaks 4/8-byte core types.
+      const stop = isNarrow(p.core)
+        ? (() => {
+            const timer = setInterval(() => {
+              try {
+                writeNarrow(proc, addr, p.core as never, value, {
+                  dryRun: false,
+                });
+              } catch {
+                /* closed or unwritable — ignore */
+              }
+            }, ms);
+            timer.unref();
+            return () => clearInterval(timer);
+          })()
+        : proc.freeze(addr, p.core as WriteValueType, value, ms);
       freezes.set(id, stop);
       if (json) emitOk({ freeze: id, addr: hex(addr), ms });
       else console.log(`freeze ${id} on ${hex(addr)} = ${value} every ${ms}ms`);
