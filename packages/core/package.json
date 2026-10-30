@@ -4,12 +4,14 @@
   "description": "Windows process-memory engine: typed read/write, CE-style scanning, MinHook-grade hooks, inject, threads, findWhatWrites, remote structs (Address/Entity/Offsets). Built on @memoryprocess/bindings.",
   "type": "module",
   "packageManager": "bun@1.4.4",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "bun": "./src/index.ts",
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
     }
   },
   "files": [

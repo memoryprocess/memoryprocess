@@ -34,10 +34,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: bun fmt (check)
         run: bun fmt --check
-      - name: typecheck (all packages)
-        run: bun run check
+      # Build first: the packages' `types` exports point at dist/*.d.ts, so the
+      # typecheck needs each dependency's dist emitted before it can resolve
+      # '@memoryprocess/bindings'/'core' from the consumer packages.
       - name: build native + core
         run: bun run build
+      - name: typecheck (all packages)
+        run: bun run check
       - name: build test victims
         run: bun run build:victim && bun run build:testdll
       - name: test

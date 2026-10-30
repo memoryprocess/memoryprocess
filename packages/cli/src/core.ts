@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Dev-mode import shim.
  *
  * @memoryprocess/core's published exports point at dist/index.js (built by
- * tsdown). In the workspace we want the CLI to run the same TS the tests do —
+ * tsdown). In the workspace we want the CLI to run the same TS the tests do â€”
  * so we import core's source directly. For the published package this file is
  * replaced by `import '@memoryprocess/core'`.
  */
@@ -26,7 +26,7 @@ export {
   ScanError,
   InjectError,
   InvalidSchemaError,
-} from '../../core/src/index.js';
+} from '@memoryprocess/core';
 export type {
   ProcessInfo,
   ModuleInfo,
@@ -47,4 +47,4 @@ export type {
   SigEntry,
   OffsetsJson,
   EntityListOptions,
-} from '../../core/src/index.js';
+} from '@memoryprocess/core';

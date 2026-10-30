@@ -4,13 +4,28 @@
   "description": "mproc — command-line interface for the memoryprocess toolkit (scan/read/write/pointers/watch with --json).",
   "type": "module",
   "packageManager": "bun@1.4.4",
-  "private": true,
   "bin": {
-    "mproc": "./src/cli.ts"
+    "mproc": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": "./dist/cli.mjs"
+  },
+  "files": [
+    "dist"
+  ],
+  "os": [
+    "win32"
+  ],
+  "engines": {
+    "node": ">=22"
   },
   "scripts": {
+    "build": "tsdown",
     "check": "bun check",
     "typecheck": "tsc --noEmit"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@memoryprocess/core": "workspace:*"
@@ -22,7 +37,12 @@
   },
   "author": "JoShMiQueL",
   "license": "MIT",
-  "os": [
-    "win32"
+  "keywords": [
+    "memory",
+    "process",
+    "cli",
+    "windows",
+    "pattern-scan",
+    "reverse-engineering"
   ]
 }

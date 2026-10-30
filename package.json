@@ -8,12 +8,14 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "bun run --filter '@memoryprocess/bindings' build && bun run --filter '@memoryprocess/core' build",
+    "build": "bun run --filter '@memoryprocess/bindings' build && bun run --filter '@memoryprocess/core' build && bun run --filter '@memoryprocess/cli' build && bun run --filter '@memoryprocess/mcp' build",
     "build:bindings": "bun run --filter '@memoryprocess/bindings' build",
     "build:core": "bun run --filter '@memoryprocess/core' build",
+    "build:cli": "bun run --filter '@memoryprocess/cli' build",
+    "build:mcp": "bun run --filter '@memoryprocess/mcp' build",
     "build:victim": "bun run --filter '@memoryprocess/core' build:victim",
     "build:testdll": "bun run --filter '@memoryprocess/core' build:testdll",
-    "check": "bun run --filter '@memoryprocess/bindings' check && bun run --filter '@memoryprocess/core' check && bun run --filter '@memoryprocess/cli' check && bun run --filter '@memoryprocess/mcp' check",
+    "check": "bun run build:bindings && bun run build:core && bun run --filter '@memoryprocess/bindings' check && bun run --filter '@memoryprocess/core' check && bun run --filter '@memoryprocess/cli' check && bun run --filter '@memoryprocess/mcp' check",
     "fmt": "bun fmt",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun test",
