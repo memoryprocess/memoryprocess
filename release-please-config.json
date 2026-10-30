@@ -1,41 +1,26 @@
 {
   "release-type": "node",
+  "versioning": "prerelease",
+  "prerelease-type": "dev",
+  "prerelease": true,
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": true,
   "packages": {
     "packages/bindings": {
       "package-name": "@memoryprocess/bindings",
-      "release-type": "node",
-      "prerelease": true,
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
-      "changelog-path": "CHANGELOG.md",
-      "versioning": "default"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/core": {
       "package-name": "@memoryprocess/core",
-      "release-type": "node",
-      "prerelease": true,
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
-      "changelog-path": "CHANGELOG.md",
-      "versioning": "default"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/cli": {
       "package-name": "@memoryprocess/cli",
-      "release-type": "node",
-      "prerelease": true,
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
-      "changelog-path": "CHANGELOG.md",
-      "versioning": "default"
+      "changelog-path": "CHANGELOG.md"
     },
     "packages/mcp": {
       "package-name": "@memoryprocess/mcp",
-      "release-type": "node",
-      "prerelease": true,
-      "bump-minor-pre-major": true,
-      "bump-patch-for-minor-pre-major": true,
-      "changelog-path": "CHANGELOG.md",
-      "versioning": "default"
+      "changelog-path": "CHANGELOG.md"
     }
   },
   "plugins": ["node-workspace"],
