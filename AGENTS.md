@@ -42,7 +42,7 @@ This file distills the durable, repo-specific knowledge an agent (or contributor
 - Don't commit binaries (`.node/.exe/.dll/.lib/.exp/.obj/.pdb`) — gitignored, built by scripts.
 - Don't rename back to `hacks`/`cheat-dev` vocabulary — the layer is `structs.ts`, remote-struct/introspection.
 - Don't add a separate `sdk` package — the struct layer lives in `core` (empty convenience packages look amateur).
-- Don't publish `latest` — release channels are `dev`/`next` until stable is authorized.
+- Don't publish `latest` manually — `publish.yml` derives the dist-tag from the version: prerelease → `dev`/`next`/`beta`, stable → `latest`. `latest` only fires via a maintainer `release-as` commit (docs/releasing.md).
 - Don't put backticks `` ` `` or `$` inside double-quoted PowerShell args for `gh pr create --body` — pwsh escapes/expand them into literal `\` junk in the body. **Always use `--body-file <file>`** (write the markdown to a temp file, pass the path). Same for commit messages — use `-F file` or write the file first.
 
 ## PR workflow

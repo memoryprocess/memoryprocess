@@ -1,8 +1,10 @@
 name: Publish
 
-# Publishes released packages to npm on the `dev` channel only.
-# Triggered by release-please creating a per-package tag (<pkg>@x.y.z).
-# `latest` is NEVER set here — stable release is a separate, manually-gated step.
+# Publishes released packages to npm. Triggered by release-please creating a
+# per-package tag (<pkg>@x.y.z). The dist-tag is derived from the VERSION:
+# prerelease (`-dev`/`-next`/`-beta`) → that channel; stable → `latest`.
+# `latest` only ever fires on a maintainer-authored `release-as` stable version —
+# see docs/releasing.md "Promoting dev → latest".
 on:
   push:
     tags:
@@ -45,8 +47,21 @@ jobs:
       - name: build
         working-directory: packages/${{ matrix.package }}
         run: bun run build
-      - name: publish to npm (dev channel)
+      # The version in the tag decides the npm channel: 1.2.3-dev.4 → dev,
+      # 1.2.3-next.1 → next, 1.2.3 (no prerelease) → latest.
+      - name: pick dist-tag from version
+        id: chan
+        shell: pwsh
+        run: |
+          $ver = '${{ github.ref_name }}' -replace '^[^@]+@', ''
+          $channel = 'latest'
+          if ($ver -match '-(dev|next|beta|alpha)') { $channel = $Matches[1] }
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          echo "version=$ver channel=$channel"
+      # OIDC Trusted Publishing: no NODE_AUTH_TOKEN — the job's `id-token: write`
+      # permission lets npm exchange the GitHub OIDC token for a short-lived
+      # publish credential. Requires a Trusted Publisher configured on
+      # npmjs.com per package pointing at this workflow (publish.yml).
+      - name: publish to npm (OIDC)
         working-directory: packages/${{ matrix.package }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --tag dev
+        run: npm publish --access public --tag ${{ steps.chan.outputs.channel }} --provenance
