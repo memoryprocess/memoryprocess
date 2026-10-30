@@ -334,6 +334,115 @@ describe('eval_js + gating', () => {
   });
 });
 
+describe('mem_scan_pattern + mem_regions', () => {
+  test('mem_scan_pattern finds g_pattern bytes at its own address', async () => {
+    const r = await ok('mem_scan_pattern', {
+      session,
+      // g_pattern = 48 8B 05 AA BB CC 90 90 DE AD BE EF 00 11 22 33
+      pattern: '48 8B 05 AA BB CC 90 90 DE AD BE EF 00 11 22 33',
+      module: 'victim.exe',
+    });
+    const hits = r.hits as string[];
+    expect(r.count).toBe(1);
+    expect(hits[0]).toBe(hex(victim.addr.g_pattern));
+    expect(r.truncated).toBe(false);
+  });
+
+  test('mem_scan_pattern wildcards + start/end range work', async () => {
+    const r = await ok('mem_scan_pattern', {
+      session,
+      pattern: '48 8B ?? ?? BB CC',
+      start: hex(victim.addr.g_pattern),
+      end: hex(victim.addr.g_pattern + 0x10n),
+    });
+    expect((r.hits as string[])[0]).toBe(hex(victim.addr.g_pattern));
+  });
+
+  test('mem_scan_pattern multi-hit honors limit/truncated', async () => {
+    // "DE AD" appears in g_pattern and twice in g_pattern2 → ≥3 hits
+    const r = await ok('mem_scan_pattern', {
+      session,
+      pattern: 'DE AD',
+      module: 'victim.exe',
+      limit: 2,
+    });
+    expect(r.count).toBeGreaterThanOrEqual(3);
+    expect(r.truncated).toBe(true);
+    expect((r.hits as string[]).length).toBe(2);
+  });
+
+  test('mem_regions lists committed regions incl. the module image', async () => {
+    const r = await ok('mem_regions', { session });
+    const regions = r.regions as {
+      base: string;
+      size: string;
+      protect: string;
+      state: string;
+      type: string;
+    }[];
+    expect(regions.length).toBeGreaterThan(0);
+    const vic = regions.find(
+      (x) =>
+        BigInt(x.base) <= victim.addr.g_i32 &&
+        victim.addr.g_i32 < BigInt(x.base) + BigInt(x.size),
+    );
+    expect(vic).toBeDefined();
+    expect(vic!.state).toBe('0x1000');
+  });
+
+  test('mem_regions writableOnly excludes the read-only .rdata pages', async () => {
+    const all = await ok('mem_regions', { session });
+    const w = await ok('mem_regions', { session, writableOnly: true });
+    expect(w.count as number).toBeLessThan(all.count as number);
+    const regions = w.regions as { protect: string }[];
+    const WRITABLE = 0x04 | 0x08 | 0x40 | 0x80;
+    for (const r of regions)
+      expect(BigInt(r.protect) & BigInt(WRITABLE)).not.toBe(0n);
+  });
+});
+
+describe('mem_freeze narrow ints', () => {
+  test('i8 freeze with a negative value writes the two\u2019s-complement byte', async () => {
+    // seed g_u8 = 0x7F then freeze -5 → raw byte must read back 0xFB, not 0x05
+    const addr = hex(victim.addr.g_u8);
+    const f = await ok('mem_freeze', {
+      session,
+      addr,
+      type: 'i8',
+      value: -5,
+      ms: 10,
+    });
+    const freezeId = f.freezeId as string;
+    await ok('mem_write', { session, addr, type: 'u8', value: 0 });
+    await new Promise((r) => setTimeout(r, 120));
+    const raw = await ok('mem_read', { session, addr, type: 'u8' });
+    expect(raw.value).toBe(0xfb);
+    const signed = await ok('mem_read', { session, addr, type: 'i8' });
+    expect(signed.value).toBe(-5);
+    await ok('mem_unfreeze', { freezeId });
+    // restore
+    await ok('mem_write', { session, addr, type: 'u8', value: 0x7f });
+  });
+
+  test('i16 freeze keeps a negative value across clobbers', async () => {
+    const addr = hex(victim.addr.g_u16);
+    const f = await ok('mem_freeze', {
+      session,
+      addr,
+      type: 'i16',
+      value: -2,
+      ms: 10,
+    });
+    const freezeId = f.freezeId as string;
+    await ok('mem_write', { session, addr, type: 'u16', value: 0 });
+    await new Promise((r) => setTimeout(r, 120));
+    const raw = await ok('mem_read', { session, addr, type: 'u16' });
+    expect(raw.value).toBe(0xfffe);
+    await ok('mem_unfreeze', { freezeId });
+    await ok('mem_write', { session, addr, type: 'u16', value: 0xbeef });
+  });
+});
+
 describe('proc_close', () => {
   test('closing a session kills it; reusing it fails', async () => {
     const r = await ok('proc_open', { pid: victim.pid });
