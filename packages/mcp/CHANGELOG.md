@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.0.3-beta.2](https://github.com/memoryprocess/memoryprocess/compare/mcp@0.0.3-beta.1...mcp@0.0.3-beta.2) (2026-10-31)
+
+### Bug Fixes
+
+- sanitize remaining non-ASCII (round 2) + harden release pipeline ([#30](https://github.com/memoryprocess/memoryprocess/issues/30)) ([db192a6](https://github.com/memoryprocess/memoryprocess/commit/db192a601ed0963d9f351c90525ca8cfc2fe459d))
+
+### Dependencies
+
+- The following workspace dependencies were updated
+  - dependencies
+    - @memoryprocess/core bumped to 0.0.3-beta.2
+
 ## [0.0.3-beta.1](https://github.com/memoryprocess/memoryprocess/compare/mcp@0.0.2-dev.2...mcp@0.0.3-beta.1) (2026-10-31)
 
 ### Features
