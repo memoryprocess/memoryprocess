@@ -10,7 +10,7 @@ name: Publish
 # branch push, 0 jobs, `failure` noise) -- `branches-ignore: ['**']`
 # excludes all branch pushes explicitly. The job `if` also double-gates
 # on github.ref being a tag.
-'on':
+on:
   push:
     branches-ignore:
       - '**'
