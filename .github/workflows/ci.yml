@@ -26,7 +26,7 @@ jobs:
       # Cache bun's GLOBAL install cache (like ~/.npm) — a warm cache makes
       # `bun install` ~2s instead of ~80s. Keyed on the lockfile.
       - name: cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-buncache-${{ hashFiles('bun.lock') }}
@@ -60,14 +60,14 @@ jobs:
         node: ['22', '24', '25', '26']
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
       - name: cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-buncache-${{ hashFiles('bun.lock') }}
@@ -91,7 +91,7 @@ jobs:
         with:
           bun-version-file: package.json
       - name: cache bun install cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.bun/install/cache
           key: ${{ runner.os }}-buncache-${{ hashFiles('bun.lock') }}
