@@ -1,64 +1,63 @@
-﻿{
-    "name":  "@memoryprocess/core",
-    "version":  "0.1.0-beta.0",
-    "description":  "Windows process-memory engine: typed read/write, CE-style scanning, MinHook-grade hooks, inject, threads, findWhatWrites, remote structs (Address/Entity/Offsets). Built on @memoryprocess/bindings.",
-    "type":  "module",
-    "packageManager":  "bun@1.4.4",
-    "main":  "dist/index.mjs",
-    "types":  "dist/index.d.mts",
-    "exports":  {
-                    ".":  {
-                              "bun":  "./src/index.ts",
-                              "development":  "./src/index.ts",
-                              "types":  "./dist/index.d.mts",
-                              "import":  "./dist/index.mjs"
-                          }
-                },
-    "files":  [
-                  "dist",
-                  "src",
-                  "LICENSE",
-                  "README.md"
-              ],
-    "os":  [
-               "win32"
-           ],
-    "engines":  {
-                    "node":  "\u003e=22"
-                },
-    "scripts":  {
-                    "build":  "tsdown",
-                    "build:victim":  "node scripts/build-victim.mjs",
-                    "build:testdll":  "node scripts/build-testdll.mjs",
-                    "check":  "bun check",
-                    "typecheck":  "tsc --noEmit",
-                    "test":  "bun test",
-                    "clean":  "node scripts/clean.mjs"
-                },
-    "publishConfig":  {
-                          "access":  "public"
-                      },
-    "repository":  {
-                       "type":  "git",
-                       "url":  "git+https://github.com/memoryprocess/memoryprocess.git",
-                       "directory":  "packages/core"
-                   },
-    "author":  "JoShMiQueL",
-    "license":  "MIT",
-    "dependencies":  {
-                         "@memoryprocess/bindings":  "workspace:*"
-                     },
-    "keywords":  [
-                     "memory",
-                     "process",
-                     "read",
-                     "write",
-                     "windows",
-                     "native",
-                     "addon",
-                     "napi",
-                     "pattern-scan",
-                     "reverse-engineering"
-                 ],
-    "_release_1_0_0":  true
+{
+  "name": "@memoryprocess/core",
+  "version": "1.0.0",
+  "description": "Windows process-memory engine: typed read/write, CE-style scanning, MinHook-grade hooks, inject, threads, findWhatWrites, remote structs (Address/Entity/Offsets). Built on @memoryprocess/bindings.",
+  "type": "module",
+  "packageManager": "bun@1.4.4",
+  "main": "dist/index.mjs",
+  "types": "dist/index.d.mts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
+  ],
+  "os": [
+    "win32"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "build:victim": "node scripts/build-victim.mjs",
+    "build:testdll": "node scripts/build-testdll.mjs",
+    "check": "bun check",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "clean": "node scripts/clean.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/memoryprocess/memoryprocess.git",
+    "directory": "packages/core"
+  },
+  "author": "JoShMiQueL",
+  "license": "MIT",
+  "dependencies": {
+    "@memoryprocess/bindings": "workspace:*"
+  },
+  "keywords": [
+    "memory",
+    "process",
+    "read",
+    "write",
+    "windows",
+    "native",
+    "addon",
+    "napi",
+    "pattern-scan",
+    "reverse-engineering"
+  ]
 }
