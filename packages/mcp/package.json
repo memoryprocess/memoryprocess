@@ -1,6 +1,6 @@
 {
   "name": "@memoryprocess/mcp",
-  "version": "0.0.3-beta.2",
+  "version": "0.0.3-beta.3",
   "description": "MCP server exposing the memoryprocess toolkit to LLM agents - the primary agentic surface.",
   "type": "module",
   "packageManager": "bun@1.4.4",

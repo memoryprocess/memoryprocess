@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.3-beta.3](https://github.com/memoryprocess/memoryprocess/compare/cli@0.0.3-beta.2...cli@0.0.3-beta.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **release:** bun publish so workspace:* deps rewrite ([#33](https://github.com/memoryprocess/memoryprocess/issues/33)) ([7448c94](https://github.com/memoryprocess/memoryprocess/commit/7448c94ce758cf7f9f318109e806a586754035c7))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @memoryprocess/core bumped to 0.0.3-beta.3
+
 ## [0.0.3-beta.2](https://github.com/memoryprocess/memoryprocess/compare/cli@0.0.3-beta.1...cli@0.0.3-beta.2) (2026-10-31)
 
 ### Bug Fixes
