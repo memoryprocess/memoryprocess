@@ -110,27 +110,58 @@ jobs:
       # published package then fails to install (EUNSUPPORTEDPROTOCOL). Bun
       # rewrites them but `bun publish` has no OIDC Trusted-Publisher support
       # yet. Fix: rewrite each package.json's `workspace:*` to the resolved
-      # release version right before `npm publish` (the tag tells us the
-      # version; all four packages are lockstep so every workspace dep gets
-      # the same `^<version>`).
-      - name: rewrite workspace deps to release version
+      # release version of THAT dependency right before `npm publish` (each
+      # workspace dep maps to its own @memoryprocess package's release tag --
+      # packages version independently under separate-pull-requests).
+      - name: rewrite workspace deps to each dep's resolved version
         shell: pwsh
         run: |
-          $ver = '${{ steps.tags.outputs.core }}' -replace '^[^@]+@', ''
+          # Independent versioning: rewrite each `workspace:*` dep to the
+          # resolved version of THAT dependency (from its own release tag),
+          # not a single lockstep version. Build a pkg->version map first.
+          $verOf = @{}
+          foreach ($pkg in $env:PKGS.Split(' ')) {
+            $tag = "${{ steps.tags.outputs.bindings }}","${{ steps.tags.outputs.core }}","${{ steps.tags.outputs.cli }}","${{ steps.tags.outputs.mcp }}" |
+              Where-Object { $_ -like "$pkg@*" } | Select-Object -First 1
+            $verOf[$pkg] = ($tag -replace '^[^@]+@', '')
+          }
           foreach ($pkg in $env:PKGS.Split(' ')) {
             $pj = "packages/$pkg/package.json"
+            $o = Get-Content $pj -Raw | ConvertFrom-Json
             $c = Get-Content $pj -Raw
-            $c = $c -replace '"workspace:\*"', "`"^$ver`""
+            foreach ($depName in @($o.dependencies.PSObject.Properties.Name)) {
+              if ($o.dependencies.$depName -eq 'workspace:*' -and $depName -like '@memoryprocess/*') {
+                $depPkg = $depName -replace '^@memoryprocess/', ''
+                $depVer = $verOf[$depPkg]
+                if (-not $depVer) { throw "no resolved version for dep $depName" }
+                $c = $c -replace ('"' + [regex]::Escape($depName) + '"\s*:\s*"workspace:\*"') , ('"' + $depName + '":"^' + $depVer + '"')
+                echo "$pkg : $depName workspace:* -> ^$depVer"
+              }
+            }
             [IO.File]::WriteAllText((Resolve-Path $pj), $c, [Text.UTF8Encoding]::new($false))
-            echo "$pkg : workspace:* -> ^$ver"
           }
       - name: publish to npm (OIDC)
         shell: pwsh
         run: |
           foreach ($pkg in $env:PKGS.Split(' ')) {
             Push-Location "packages/$pkg"
+            $ver = (Get-Content package.json -Raw | ConvertFrom-Json).version
+            # Independent versioning: a package only publishes if its version
+            # isn't already on npm -- a release for `bindings` alone must not
+            # republish (and E403-abort) the unchanged core/cli/mcp. Check the
+            # registry first so an unchanged package is skipped, not failed.
+            $published = $false
+            try {
+              $null = Invoke-RestMethod "https://registry.npmjs.org/@memoryprocess%2f$pkg/$ver" -TimeoutSec 30
+              $published = $true
+            } catch { $published = $false }
+            if ($published) {
+              echo "$pkg@$ver already on npm -- skipping"
+              Pop-Location
+              continue
+            }
             npm publish --access public --tag ${{ steps.chan.outputs.channel }}
             if ($LASTEXITCODE -ne 0) { throw "npm publish failed for $pkg" }
             Pop-Location
-            echo "published $pkg @ ${{ steps.chan.outputs.channel }}"
+            echo "published $pkg@$ver @ ${{ steps.chan.outputs.channel }}"
           }
