@@ -21,7 +21,6 @@ import {
   parseScanType,
   parseType,
   parseValue,
-  READVALUE_TYPES,
   TYPE_WIDTHS,
   type Flags,
   type NarrowType,
@@ -430,6 +429,42 @@ async function cmdScan(ctx: Ctx): Promise<void> {
   emitProgress({ type: 'state', path: statePath });
 }
 
+/* ---------------- scan-pattern (AOB) ---------------- */
+async function cmdScanPattern(ctx: Ctx): Promise<void> {
+  needPos(
+    ctx,
+    1,
+    "mproc scan-pattern <pid> '<aob>' [--module m [--section s] | --start a --end b] [--limit n]",
+  );
+  const proc = ctx.proc!;
+  // Join ALL positionals: quoted '48 8B ?? 10' and bare 48 8B ?? 10 parse the
+  // same -- and attach-mode input is always unquoted (whitespace-split lines).
+  const pattern = ctx.pos.join(' ');
+  emitProgress({ type: 'progress', op: 'scan-pattern', pid: proc.pid });
+  const hits = await proc.scan(pattern, {
+    module: ctx.flags.module,
+    section: ctx.flags.section,
+    start: ctx.flags.start ? parseAddr(proc, ctx.flags.start) : undefined,
+    end: ctx.flags.end ? parseAddr(proc, ctx.flags.end) : undefined,
+  });
+  const limit = ctx.flags.limit ?? hits.length;
+  const shown = hits.slice(0, limit);
+  if (ctx.flags.json) {
+    for (const h of shown) emitLine({ type: 'hit', addr: hex(h) });
+    emitLine({ type: 'done', count: hits.length, shown: shown.length });
+  } else {
+    const [rows, omitted] = cap(shown, 40);
+    console.log(
+      table(
+        rows.map((h) => [hex(h)]),
+        ['ADDR'],
+      ),
+    );
+    if (omitted) console.log(`... ${omitted} more (use --limit)`);
+    console.log(`${hits.length} hits`);
+  }
+}
+
 function storedToHits(st: {
   hits: { addr: string; value: number | string }[];
 }): ScanHit[] {
@@ -711,6 +746,7 @@ const PID_COMMANDS = new Set([
   'read',
   'write',
   'scan',
+  'scan-pattern',
   'next',
   'pointers',
   'watch',
@@ -731,6 +767,7 @@ export const COMMANDS: Record<string, Handler> = {
   read: cmdRead,
   write: cmdWrite,
   scan: cmdScan,
+  'scan-pattern': cmdScanPattern,
   next: cmdNext,
   pointers: cmdPointers,
   watch: cmdWatch,
@@ -752,6 +789,7 @@ export const USAGE = `mproc -- memoryprocess CLI
   mproc read <pid> <addr> [type]              typed read (i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr)
   mproc write <pid> <addr> <type> <value> [--dry]
   mproc scan <pid> <value> [type] [--module m | --start a --end b] [--out f] [--limit n]   CE-style value scan -> .mproc/scan-<pid>.json
+  mproc scan-pattern <pid> '<aob>' [--module m [--section s] | --start a --end b] [--limit n]   AOB sig scan ("48 8B ?? 10")
   mproc next <pid> <file> <mode> [args]          refine: exact V|changed|unchanged|increased|decreased|increasedBy V|decreasedBy V|between LO HI
   mproc pointers <pid> '<name>:<mod+rva,off,off>'...   resolve named chains
   mproc watch <pid> <addr> [type] [ms]        stream value changes (Ctrl-C ends)
@@ -761,7 +799,7 @@ export const USAGE = `mproc -- memoryprocess CLI
   mproc entities <pid> <addr> <stride|next:OFF> [max]
   mproc attach <pid>                          session: hold Process open, one command per stdin line
 
-addr := 0x... | decimal | mod+rva   flags: --json --dry --out f --limit n --ms t --module m --start a --end b --version
+addr := 0x... | decimal | mod+rva | mod   flags: --json --dry --out f --limit n --ms t --module m --section s --start a --end b --version
 `;
 
 /**

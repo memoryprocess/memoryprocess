@@ -289,6 +289,45 @@ describe('mproc -- scan/next via state file', () => {
   });
 });
 
+describe('mproc -- scan-pattern (AOB)', () => {
+  test('finds g_pattern inside victim.exe via --module', async () => {
+    // g_pattern = 48 8B 05 AA BB CC 90 90 DE AD BE EF 00 11 22 33
+    const r = await mproc([
+      'scan-pattern',
+      String(victim.pid),
+      '48 8B 05 AA BB CC 90 90 DE AD BE EF 00 11 22 33',
+      '--module',
+      'victim.exe',
+      '--json',
+    ]);
+    expect(r.code).toBe(0);
+    const lines = r.stdout
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    const hits = lines.filter((o) => o.type === 'hit').map((o) => o.addr);
+    expect(hits).toContain(`0x${victim.addr.g_pattern!.toString(16)}`);
+    const done = lines.find((o) => o.type === 'done');
+    expect(done.count).toBeGreaterThanOrEqual(1);
+  });
+
+  test('wildcards + unquoted multi-positional pattern parse', async () => {
+    // attach-mode input is whitespace-split -- join pos means bare bytes work.
+    const a = `0x${victim.addr.g_pattern!.toString(16)}`;
+    const end = `0x${(victim.addr.g_pattern! + 0x10n).toString(16)}`;
+    const r = await mproc(
+      ['attach', String(victim.pid), '--json'],
+      `scan-pattern 48 8B ?? ?? BB CC --start ${a} --end ${end}\nexit\n`,
+    );
+    const lines = r.stdout
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l));
+    const hits = lines.filter((o) => o.type === 'hit').map((o) => o.addr);
+    expect(hits).toContain(a);
+  });
+});
+
 describe('mproc -- pointers', () => {
   test("resolves 'mod+rva,off' chains", async () => {
     // g_ppp points at g_pp: 'victim.exe+rva(g_ppp),0x0' resolves to &g_pp.

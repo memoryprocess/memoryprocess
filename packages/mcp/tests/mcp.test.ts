@@ -261,6 +261,21 @@ describe('pointer resolve + watch/freeze', () => {
     expect(r.addr).toBe(hex(victim.addr.g_i32));
   });
 
+  test('mem_pointer_resolve with no offsets returns module base + rva', async () => {
+    const d = await ok('mem_describe', { session });
+    const vic = (
+      d.modules as { name: string; base: string; size: number }[]
+    ).find((m) => /victim\.exe/i.test(m.name))!;
+    const rva = victim.addr.g_i32 - BigInt(vic.base);
+    // offsets omitted entirely -- no dereference, just base+rva
+    const r = await ok('mem_pointer_resolve', {
+      session,
+      module: vic.name,
+      rva: hex(rva),
+    });
+    expect(r.addr).toBe(hex(victim.addr.g_i32));
+  });
+
   test('mem_watch records change; poll drains; unwatch stops', async () => {
     const w = await ok('mem_watch', {
       session,
@@ -331,6 +346,45 @@ describe('eval_js + gating', () => {
     );
     expect(r.ok).toBe(false);
     expect(err(r).code).toBe('UNKNOWN_TOOL');
+  });
+
+  test('restricted mode hides eval + the write tools, keeps read/scan', async () => {
+    const names = toolNames({ evalEnabled: false, restricted: true });
+    for (const n of ['eval_js', 'mem_write', 'mem_freeze', 'mem_undo'])
+      expect(names.includes(n)).toBe(false);
+    for (const n of [
+      'mem_read',
+      'mem_describe',
+      'mem_scan',
+      'mem_scan_pattern',
+      'mem_regions',
+      'mem_pointer_resolve',
+      'mem_watch',
+      'mem_journal',
+    ])
+      expect(names.includes(n)).toBe(true);
+    // hidden tools are also rejected by the dispatcher
+    const w = await callTool(
+      sessions,
+      'mem_write',
+      {
+        session,
+        addr: '0x10',
+        type: 'u32',
+        value: 1,
+      },
+      { evalEnabled: false, restricted: true },
+    );
+    expect(w.ok).toBe(false);
+    expect(err(w).code).toBe('UNKNOWN_TOOL');
+    // a read still works under the same flags
+    const rr = await callTool(
+      sessions,
+      'mem_read',
+      { session, addr: hex(victim.addr.g_u32), type: 'u32' },
+      { evalEnabled: false, restricted: true },
+    );
+    expect(rr.ok).toBe(true);
   });
 });
 
