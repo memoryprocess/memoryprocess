@@ -5,6 +5,7 @@
  *   0x7ff6a1b20000   hex
  *   140700000        decimal
  *   game.exe+0x1F2A3C  module+rva (resolved via the process module table)
+ *   game.exe           bare module name -> its base address
  *
  * Type names: i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr
  *
@@ -49,8 +50,11 @@ export function parseValue(s: string, type: string): number | bigint {
 }
 
 /**
- * Resolve an address argument against an open process. 'mod+rva' (and bare
- * 'mod') defer to Process.addr() so the module-table rules stay in core.
+ * Resolve an address argument against an open process. 'mod+rva' defers to
+ * Process.addr() so the module-table rules stay in core -- and core also
+ * accepts a BARE 'mod' (resolves to the module base); keep it: it's a
+ * deliberate shorthand, not an accident. A typo'd address still throws
+ * MODULE_NOT_FOUND rather than reading the wrong address silently.
  */
 export function parseAddr(proc: Process, s: string): bigint {
   const t = s.trim();
@@ -124,20 +128,6 @@ export function parseType(s: string | undefined): ParsedType {
   return { kind: 'scalar', core };
 }
 
-/**
- * Scalar types readValueAt accepts -- everything TYPE_MAP knows minus the
- * narrow pseudo-types (i8|u8|i16|u16) which readValueAt would reject.
- */
-export const READVALUE_TYPES = new Set<string>([
-  'int32',
-  'uint32',
-  'int64',
-  'uint64',
-  'float',
-  'double',
-  'pointer',
-]);
-
 /** Scalar types scanValue/nextScan accept ('pointer' is write-only). */
 const VALID_SCAN_TYPES: readonly ScanValueType[] = [
   'int32',
@@ -203,8 +193,8 @@ export interface Flags {
   out?: string;
   limit?: number;
   ms?: number;
-  all?: boolean;
   module?: string;
+  section?: string;
   start?: string;
   end?: string;
   /** remaining unknown flags -> error */
@@ -223,7 +213,6 @@ export function parseFlags(argv: string[]): { flags: Flags; pos: string[] } {
     };
     if (a === '--json') flags.json = true;
     else if (a === '--dry' || a === '--dry-run') flags.dry = true;
-    else if (a === '--all') flags.all = true;
     else if (a === '--out' || a === '-o') flags.out = take();
     else if (a === '--limit' || a === '-n') {
       const v = Number(take());
@@ -236,6 +225,7 @@ export function parseFlags(argv: string[]): { flags: Flags; pos: string[] } {
         throw new UsageError('--ms must be an integer >= 1');
       flags.ms = v;
     } else if (a === '--module' || a === '-m') flags.module = take();
+    else if (a === '--section') flags.section = take();
     else if (a === '--start') flags.start = take();
     else if (a === '--end') flags.end = take();
     else if (a.startsWith('--')) flags.rest.push(a);

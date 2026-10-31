@@ -558,7 +558,19 @@ type Handler = (
 interface ToolDef {
   description: string;
   schema: Record<string, z.ZodTypeAny>;
+  /** writeHint + destructiveHint are set on the wire; restricted-mode lists too. */
   destructive?: boolean;
+  /**
+   * `true` = write tool hidden in restricted (--no-eval) mode.
+   *
+   * Restricted mode exists so an MCP client can run this server without ever
+   * handing the model code execution (eval_js) or arbitrary memory mutation.
+   * The write surface needs eval anyway to allocate memory and build strings,
+   * so the whole mutating group goes together. Reversible state (sessions,
+   * watches, freeze timers) always cleans up on proc_close / shutdown, so
+   * freeze stays unrestricted alongside undo.
+   */
+  writeOnly?: boolean;
   handler: Handler;
 }
 
@@ -639,6 +651,7 @@ const toolDefs: Record<string, ToolDef> = {
       dryRun: z.boolean().optional().describe('preview only, do not write'),
     },
     destructive: true,
+    writeOnly: true,
     handler: (s, a) => {
       const proc = s.get(a.session);
       const addr = parseAddress(proc, a.addr);
@@ -873,7 +886,10 @@ const toolDefs: Record<string, ToolDef> = {
         .describe('offset from module base (hex ok)'),
       offsets: z
         .array(z.union([z.string(), z.number()]))
-        .describe('pointer-chain offsets; all but the last dereference'),
+        .optional()
+        .describe(
+          'pointer-chain offsets; omit (or []) for plain module+rva -- no dereference',
+        ),
     },
     handler: (s, a) => {
       const proc = s.get(a.session);
@@ -885,7 +901,7 @@ const toolDefs: Record<string, ToolDef> = {
       } catch {
         throw fail('INVALID_ARGS', `bad rva "${a.rva}"`);
       }
-      const offsets = (a.offsets as (string | number)[]).map((o, i) => {
+      const offsets = ((a.offsets ?? []) as (string | number)[]).map((o, i) => {
         const n = typeof o === 'string' ? Number(BigInt(o)) : Number(o);
         if (!Number.isFinite(n))
           throw fail('INVALID_ARGS', `offsets[${i}] invalid`);
@@ -951,6 +967,7 @@ const toolDefs: Record<string, ToolDef> = {
       ms: z.number().int().positive().optional(),
     },
     destructive: true,
+    writeOnly: true,
     handler: (s, a) => {
       const proc = s.get(a.session);
       const addr = parseAddress(proc, a.addr);
@@ -1013,6 +1030,7 @@ const toolDefs: Record<string, ToolDef> = {
       n: z.number().int().positive().optional(),
     },
     destructive: true,
+    writeOnly: true,
     handler: (s, a) => {
       const reverted = s.get(a.session).undo((a.n as number | undefined) ?? 1);
       return { reverted };
@@ -1055,9 +1073,17 @@ const toolDefs: Record<string, ToolDef> = {
 
 export const TOOL_DEFS = toolDefs;
 
-export function toolNames(opts: { evalEnabled?: boolean } = {}): string[] {
+/** Tools visible under the given mode. restricted = --no-eval/MEMP_NO_EVAL. */
+export function toolNames(
+  opts: { evalEnabled?: boolean; restricted?: boolean } = {},
+): string[] {
   const evalEnabled = opts.evalEnabled ?? true;
-  return Object.keys(toolDefs).filter((n) => evalEnabled || n !== 'eval_js');
+  const restricted = opts.restricted ?? false;
+  return Object.keys(toolDefs).filter(
+    (n) =>
+      (evalEnabled || n !== 'eval_js') &&
+      (!restricted || !toolDefs[n]!.writeOnly),
+  );
 }
 
 /** Direct dispatcher used by both the stdio server and the tests. */
@@ -1065,12 +1091,17 @@ export async function callTool(
   sessions: SessionStore,
   name: string,
   args: Record<string, unknown>,
-  opts: { evalEnabled?: boolean } = {},
+  opts: { evalEnabled?: boolean; restricted?: boolean } = {},
 ): Promise<ToolResult> {
   try {
     const evalEnabled = opts.evalEnabled ?? true;
+    const restricted = opts.restricted ?? false;
     const def = toolDefs[name];
-    if (!def || (name === 'eval_js' && !evalEnabled))
+    if (
+      !def ||
+      (name === 'eval_js' && !evalEnabled) ||
+      (restricted && def.writeOnly)
+    )
       throw fail('UNKNOWN_TOOL', `unknown tool "${name}"`);
     const parsed = z.object(def.schema).safeParse(args ?? {});
     if (!parsed.success) {

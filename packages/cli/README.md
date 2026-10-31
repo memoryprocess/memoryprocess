@@ -18,6 +18,7 @@ mproc describe <pid>                        Process.describe() - full target pro
 mproc read <pid> <addr> [type]              typed read (default ptr)
 mproc write <pid> <addr> <type> <value> [--dry]
 mproc scan <pid> <value> [type] [--module m | --start a --end b] [--out f] [--limit n]
+mproc scan-pattern <pid> '<aob>' [--module m [--section s] | --start a --end b] [--limit n]
 mproc next <pid> <state-file> <mode> [args] refine a saved scan (see modes below)
 mproc pointers <pid> '<name>:<base,off,off>'...   resolve named pointer chains
 mproc watch <pid> <addr> [type] [ms]        stream value changes (Ctrl-C ends)
@@ -29,11 +30,12 @@ mproc attach <pid> [--json]                 session: commands on stdin, one per 
 mproc help
 ```
 
-- **addr** := `0x...` | decimal | `mod+rva` (e.g. `game.exe+0x1F2A3C`)
-- **type** := `i32 u32 i64 u64 f32 f64 ptr u8 u16 bytes:N str wstr`
+- **addr** := `0x...` | decimal | `mod+rva` (e.g. `game.exe+0x1F2A3C`) | `mod` (bare module name -> its base)
+- **type** := `i8 u8 i16 u16 i32 u32 i64 u64 f32 f64 ptr bytes:N str wstr`
 - **scan types** := `i32 u32 i64 u64 f32 f64`
+- **aob** := byte signature, hex bytes separated by spaces, `??` wildcards (e.g. `48 8B ?? 10`) -- hits are bare addresses, `next` doesn't refine them
 - **next modes** := `exact V` | `changed` | `unchanged` | `increased` | `decreased` | `increasedBy V` | `decreasedBy V` | `between LO HI`
-- **flags** := `--json --dry --out f --limit n --ms t --module m --start a --end b`
+- **flags** := `--json --dry --out f --limit n --ms t --module m --section s --start a --end b`
 
 ## How state survives one-shot commands
 

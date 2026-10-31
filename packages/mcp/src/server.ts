@@ -5,7 +5,8 @@
  *
  * Usage:
  *   memoryprocess-mcp              # serve MCP over stdio
- *   memoryprocess-mcp --no-eval    # omit the eval_js tool (restricted mode)
+ *   memoryprocess-mcp --no-eval    # restricted mode: no eval_js and no write
+ *                                  # tools (read/describe/scan/watch/undo only)
  *   memoryprocess-mcp --help       # list tools + exit
  *   memoryprocess-mcp --version
  *
@@ -26,6 +27,9 @@ const pkg = JSON.parse(
 const argv = process.argv.slice(2);
 const evalEnabled =
   !argv.includes('--no-eval') && process.env.MEMP_NO_EVAL !== '1';
+// Restricted mode = no-eval: the model can't run JS, so it also can't build
+// the strings/buffers writes need -- hide the whole write surface with it.
+const restricted = !evalEnabled;
 
 if (argv.includes('--version') || argv.includes('-v')) {
   console.log(`${pkg.name} ${pkg.version}`);
@@ -40,19 +44,28 @@ if (argv.includes('--help') || argv.includes('-h')) {
   console.log('');
   console.log('Usage: memoryprocess-mcp [--no-eval] [--help] [--version]');
   console.log('       MEMP_NO_EVAL=1 is equivalent to --no-eval');
+  console.log(
+    '       --no-eval = restricted mode: eval_js AND the write tools',
+  );
+  console.log('       (mem_write, mem_freeze, mem_undo) are hidden. Read,');
+  console.log('       describe, regions, scans, pointers and watches remain.');
   console.log('');
   console.log('Session model: proc_open returns a handle; every mem_* tool');
   console.log('takes it as `session`. Writes are journaled (mem_journal) and');
   console.log('reversible (mem_undo); mem_write supports dryRun previews.');
   console.log('');
   console.log('Tools:');
-  const names = toolNames({ evalEnabled });
+  const names = toolNames({ evalEnabled, restricted });
   const width = Math.max(...names.map((n) => n.length));
   for (const n of names) {
     const def = TOOL_DEFS[n]!;
     console.log(`  ${n.padEnd(width)}  ${def.description}`);
   }
-  if (!evalEnabled)
+  if (restricted)
+    console.log(
+      '\n(restricted mode: eval_js and write tools hidden -- read/describe/scan only)',
+    );
+  else if (!evalEnabled)
     console.log('\n(eval_js is disabled by --no-eval / MEMP_NO_EVAL=1)');
   process.exit(0);
 }
@@ -65,11 +78,14 @@ const server = new McpServer(
       'Process-memory toolkit. proc_open a target to get a session handle; ' +
       'all mem_* tools take it. Writes are journaled: mem_write with ' +
       'dryRun:true previews, mem_undo reverts. Prefer the coarse tools; ' +
-      'eval_js is the escape hatch for anything else.',
+      'eval_js is the escape hatch for anything else (alloc/inject/threads/' +
+      'hooks/readMany live there by design -- the coarse tool surface stays ' +
+      'narrow on purpose). --no-eval runs restricted: read/describe/scan/' +
+      'watch only, no write tools.',
   },
 );
 
-for (const name of toolNames({ evalEnabled })) {
+for (const name of toolNames({ evalEnabled, restricted })) {
   const def = TOOL_DEFS[name]!;
   server.registerTool(
     name,
@@ -86,7 +102,7 @@ for (const name of toolNames({ evalEnabled })) {
         sessions,
         name,
         args as Record<string, unknown>,
-        { evalEnabled },
+        { evalEnabled, restricted },
       );
       // structuredContent must be a JSON object -- wrap scalars/arrays.
       const data =
@@ -119,5 +135,5 @@ process.on('SIGTERM', shutdown);
 const transport = new StdioServerTransport();
 await server.connect(transport);
 process.stderr.write(
-  `${pkg.name} ${pkg.version} ready on stdio (${toolNames({ evalEnabled }).length} tools${evalEnabled ? '' : ', eval_js disabled'})\n`,
+  `${pkg.name} ${pkg.version} ready on stdio (${toolNames({ evalEnabled, restricted }).length} tools${restricted ? ', restricted: no eval/write' : ''})\n`,
 );

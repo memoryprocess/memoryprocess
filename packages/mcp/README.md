@@ -25,6 +25,11 @@ memoryprocess-mcp [--no-eval] [--help] [--version]
 MEMP_NO_EVAL=1   # same as --no-eval
 ```
 
+`--no-eval` runs **restricted mode**: `eval_js` AND the write tools
+(`mem_write`, `mem_freeze`, `mem_undo`) are hidden from `tools/list` and
+rejected by name -- the model gets a read/describe/scan/pointer/watch
+surface only, nothing that mutates the target.
+
 ## Session model
 
 There is no implicit "current process". `proc_open` returns a session handle
@@ -34,25 +39,25 @@ watches/freezes bound to it.
 
 ## Tools
 
-| Tool                  | Description                                                                                              |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| `proc_list`           | List running processes `{pid,name}[]`                                                                    |
-| `proc_open`           | Open by `{pid}` or `{name}` -> `{session, describe}`. `access:"ro"` = read-only                          |
-| `proc_close`          | Close a session                                                                                          |
-| `mem_describe`        | `Process.describe()`: arch, modules, writable/exec regions, threads                                      |
-| `mem_read`            | Typed read: `i8...i64/u8...u64`, `f32/f64`, `ptr`, `str`, `wstr`, `bytes[:N]` (+`len`)                   |
-| `mem_write`           | Typed write. `dryRun:true` -> `{addr,current,would,bytes}` preview. Journaled                            |
-| `mem_scan`            | CE value scan -> `{hits:[{addr,value}],count,truncated}` (`module`/`start`/`end`/`limit`)                |
-| `mem_scan_next`       | Refine hits: `exact`/`changed`/`unchanged`/`increased`/`decreased`/`increasedBy`/`decreasedBy`/`between` |
-| `mem_pointer_resolve` | `module`+`rva`+`offsets[]` -> resolved address (CE pointer syntax)                                       |
-| `mem_watch`           | Poll an i32 every `ms` -> `{watchId}`; changes accumulate                                                |
-| `mem_watch_poll`      | Drain recorded changes `[{value,ts}]` for a `watchId`                                                    |
-| `mem_unwatch`         | Stop a watch                                                                                             |
-| `mem_freeze`          | Re-write a value every `ms` -> `{freezeId}`                                                              |
-| `mem_unfreeze`        | Stop a freeze                                                                                            |
-| `mem_undo`            | Revert last `n` journaled writes (self-correction primitive)                                             |
-| `mem_journal`         | Write-log snapshot `[{index,addr,bytes}]`                                                                |
-| `eval_js`             | Run JS with `proc` (`Process`) in scope - the escape hatch                                               |
+| Tool                  | Description                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `proc_list`           | List running processes `{pid,name}[]`                                                                     |
+| `proc_open`           | Open by `{pid}` or `{name}` -> `{session, describe}`. `access:"ro"` = read-only                           |
+| `proc_close`          | Close a session                                                                                           |
+| `mem_describe`        | `Process.describe()`: arch, modules, writable/exec regions, threads                                       |
+| `mem_read`            | Typed read: `i8...i64/u8...u64`, `f32/f64`, `ptr`, `str`, `wstr`, `bytes[:N]` (+`len`)                    |
+| `mem_write`           | Typed write. `dryRun:true` -> `{addr,current,would,bytes}` preview. Journaled                             |
+| `mem_scan`            | CE value scan -> `{hits:[{addr,value}],count,truncated}` (`module`/`start`/`end`/`limit`)                 |
+| `mem_scan_next`       | Refine hits: `exact`/`changed`/`unchanged`/`increased`/`decreased`/`increasedBy`/`decreasedBy`/`between`  |
+| `mem_pointer_resolve` | `module`+`rva`+optional `offsets[]` -> resolved address (CE pointer syntax; no offsets = module base+rva) |
+| `mem_watch`           | Poll an i32 every `ms` -> `{watchId}`; changes accumulate                                                 |
+| `mem_watch_poll`      | Drain recorded changes `[{value,ts}]` for a `watchId`                                                     |
+| `mem_unwatch`         | Stop a watch                                                                                              |
+| `mem_freeze`          | Re-write a value every `ms` -> `{freezeId}`                                                               |
+| `mem_unfreeze`        | Stop a freeze                                                                                             |
+| `mem_undo`            | Revert last `n` journaled writes (self-correction primitive)                                              |
+| `mem_journal`         | Write-log snapshot `[{index,addr,bytes}]`                                                                 |
+| `eval_js`             | Run JS with `proc` (`Process`) in scope - the escape hatch                                                |
 
 ## Wire format (docs/json-conventions.md)
 
@@ -70,5 +75,12 @@ watches/freezes bound to it.
 All writes are journaled -> `mem_journal` + `mem_undo` let an agent preview
 (`dryRun`), commit, inspect, and revert. `eval_js` runs arbitrary JS on the
 host - it's on by default (agents already have code execution) and can be
-disabled with `--no-eval` / `MEMP_NO_EVAL=1`, which omits it from
-`tools/list` entirely.
+disabled with `--no-eval` / `MEMP_NO_EVAL=1`, which is the **restricted
+mode**: `eval_js` and the write tools (`mem_write`, `mem_freeze`,
+`mem_undo`) are omitted from `tools/list` entirely, leaving a
+read/describe/scan/pointer/watch surface that cannot mutate the target.
+
+The coarse tool surface is intentionally narrow: `alloc`, `protect`,
+`injectDll`, thread control, `hook`, `callRemote`, `readMany`/`entity` live
+in `eval_js` by design (escape hatch), and are therefore unreachable under
+`--no-eval` -- that is the point of restricted mode.
