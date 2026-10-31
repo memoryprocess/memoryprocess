@@ -1,6 +1,6 @@
 {
   "name": "@memoryprocess/cli",
-  "version": "0.0.3-beta.7",
+  "version": "0.0.3-beta.8",
   "description": "mproc - command-line interface for the memoryprocess toolkit (scan/read/write/pointers/watch with --json).",
   "type": "module",
   "packageManager": "bun@1.4.4",
