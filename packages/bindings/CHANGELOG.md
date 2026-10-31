@@ -2,10 +2,9 @@
 
 ## [0.0.2-dev.2](https://github.com/memoryprocess/memoryprocess/compare/bindings@0.0.2-dev.1...bindings@0.0.2-dev.2) (2026-10-31)
 
-
 ### Bug Fixes
 
-* purge mojibake - sanitize all .ts sources/tests to pure ASCII ([#23](https://github.com/memoryprocess/memoryprocess/issues/23)) ([6a30817](https://github.com/memoryprocess/memoryprocess/commit/6a308175572a5c096c4291588bd8972b1a57e1f1))
+- purge mojibake - sanitize all .ts sources/tests to pure ASCII ([#23](https://github.com/memoryprocess/memoryprocess/issues/23)) ([6a30817](https://github.com/memoryprocess/memoryprocess/commit/6a308175572a5c096c4291588bd8972b1a57e1f1))
 
 ## [0.0.2-dev.1](https://github.com/memoryprocess/memoryprocess/compare/bindings@0.0.2-dev...bindings@0.0.2-dev.1) (2026-10-30)
 
