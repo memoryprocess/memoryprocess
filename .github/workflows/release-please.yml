@@ -99,17 +99,11 @@ jobs:
             "$pkg=$tag" | Out-String | Write-Output
             "$pkg=$tag" >> $env:GITHUB_OUTPUT
           }
-      # The version in the tag decides the npm channel: 1.2.3-dev.4 -> dev,
-      # 1.2.3-next.1 -> next, 1.2.3 (no prerelease) -> latest.
-      - name: pick dist-tag from version
-        id: chan
-        shell: pwsh
-        run: |
-          $ver = '${{ steps.tags.outputs.core }}' -replace '^[^@]+@', ''
-          $channel = 'latest'
-          if ($ver -match '-(dev|next|beta|alpha)') { $channel = $Matches[1] }
-          "channel=$channel" >> $env:GITHUB_OUTPUT
-          echo "version=$ver channel=$channel"
+      # The version in each package's OWN tag decides the npm channel:
+      # 1.2.3-dev.4 -> dev, 1.2.3-next.1 -> next, 1.2.3 (no prerelease) ->
+      # latest. Under independent versioning the channel must come from the
+      # releasing package's tag, not a shared lockstep version -- so compute
+      # it per-package inside the publish loop instead of once from `core`.
       # OIDC Trusted Publishing: no NODE_AUTH_TOKEN -- `id-token: write`
       # lets npm exchange the GitHub OIDC token for a short-lived publish
       # credential. Trusted Publisher on npmjs.com must point at THIS
@@ -170,8 +164,10 @@ jobs:
               Pop-Location
               continue
             }
-            npm publish --access public --tag ${{ steps.chan.outputs.channel }}
+            $channel = 'latest'
+            if ($ver -match '-(dev|next|beta|alpha)') { $channel = $Matches[1] }
+            npm publish --access public --tag $channel
             if ($LASTEXITCODE -ne 0) { throw "npm publish failed for $pkg" }
             Pop-Location
-            echo "published $pkg@$ver @ ${{ steps.chan.outputs.channel }}"
+            echo "published $pkg@$ver @ $channel"
           }
