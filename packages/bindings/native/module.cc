@@ -21,6 +21,14 @@ static const double MAX_READ_BYTES = 512.0 * 1024.0 * 1024.0;
 // silently round. Harmless today (canonical user-space VA < 2^48, real HANDLE
 // values are small) but don't feed pointers >2^53 through these bindings.
 
+// Converts a JS number|bigint to u64. Numbers are truncated via the double -
+// callers document the >2^53 rounding caveat (see header note above).
+static bool JsToU64(const Napi::Value& v, std::uint64_t& out) {
+  if (v.IsBigInt()) { bool ls; out = v.As<Napi::BigInt>().Uint64Value(&ls); return true; }
+  if (v.IsNumber()) { out = static_cast<std::uint64_t>(v.As<Napi::Number>().DoubleValue()); return true; }
+  return false;
+}
+
 static bool CheckSize(Napi::Env env, double size) {
   if (!std::isfinite(size) || size < 0 || size > MAX_READ_BYTES) {
     Napi::RangeError::New(env, "size must be a finite number between 0 and 512MB")
@@ -133,7 +141,9 @@ Napi::Value GetRegionsSync(const Napi::CallbackInfo& info) {
 
 Napi::Value ReadBufferSync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,address,size)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsNumber()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number,size:number)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   double sizeD = info[2].As<Napi::Number>().DoubleValue();
@@ -153,7 +163,9 @@ Napi::Value ReadBufferSync(const Napi::CallbackInfo& info) {
 
 Napi::Value WriteBufferSync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,address,buffer)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number,buffer:Buffer)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   if (!info[2].IsBuffer()) { Napi::TypeError::New(env, "value must be a Buffer").ThrowAsJavaScriptException(); return env.Null(); }
@@ -169,7 +181,9 @@ Napi::Value WriteBufferSync(const Napi::CallbackInfo& info) {
 // trampoline stubs within rel32 range (+/-2GB) of a hook site.
 Napi::Value AllocMemorySync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,size,protection[,nearAddress])").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsNumber()) {
+    Napi::TypeError::New(env, "expected (handle:number,size:number,protection:number[,nearAddress:number])").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto size = static_cast<SIZE_T>(info[1].As<Napi::Number>().DoubleValue());
   DWORD prot = info[2].As<Napi::Number>().Uint32Value();
@@ -183,7 +197,9 @@ Napi::Value AllocMemorySync(const Napi::CallbackInfo& info) {
 
 Napi::Value FreeMemorySync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 2) { Napi::TypeError::New(env, "expected (handle,address)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   return Napi::Boolean::New(env, VirtualFreeEx(h, reinterpret_cast<LPVOID>(addr), 0, MEM_RELEASE) != 0);
@@ -191,7 +207,10 @@ Napi::Value FreeMemorySync(const Napi::CallbackInfo& info) {
 
 Napi::Value ProtectMemorySync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,address,size,prot)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 4 || !info[0].IsNumber() || !info[1].IsNumber() ||
+      !info[2].IsNumber() || !info[3].IsNumber()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number,size:number,prot:number)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   auto size = static_cast<SIZE_T>(info[2].As<Napi::Number>().DoubleValue());
@@ -267,7 +286,9 @@ Napi::Value ResumeThreadSync(const Napi::CallbackInfo& info) {
 // "int32","uint32","int64","uint64","float","double","pointer"
 Napi::Value ReadValueSync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,address,type)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsString()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number,type:string)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   std::string type = info[2].As<Napi::String>().Utf8Value();
@@ -292,19 +313,39 @@ Napi::Value ReadValueSync(const Napi::CallbackInfo& info) {
 
 Napi::Value WriteValueSync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 4) { Napi::TypeError::New(env, "expected (handle,address,type,value)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 4 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsString()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number,type:string,value:number|bigint)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   std::string type = info[2].As<Napi::String>().Utf8Value();
+  // `value` must match the type family: number for int32/uint32/float/double;
+  // number|bigint for int64/uint64/pointer (converted via JsToU64 - the TS
+  // signature declares `number|bigint`). The old As<BigInt>() on a Number was
+  // an unchecked static_cast: Int64Value() failed, the out-param stayed
+  // uninitialized and WriteProcessMemory wrote stack garbage. No C++
+  // exception is thrown under NAPI_DISABLE_CPP_EXCEPTIONS, so catch(...)
+  // could not save it - validate BEFORE converting.
+  const bool is64 = (type == "int64" || type == "uint64" || type == "pointer");
+  const bool is32 = (type == "int32" || type == "uint32" || type == "float" || type == "double");
+  if (is32 && !info[3].IsNumber()) {
+    Napi::TypeError::New(env, "value must be a number for type " + type).ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::uint64_t u64 = 0;
+  if (is64 && !JsToU64(info[3], u64)) {
+    Napi::TypeError::New(env, "value must be number|bigint for type " + type).ThrowAsJavaScriptException();
+    return env.Null();
+  }
   bool ok = false;
   try {
     if (type == "int32") ok = WriteValue<std::int32_t>(h, addr, info[3].As<Napi::Number>().Int32Value());
     else if (type == "uint32") ok = WriteValue<std::uint32_t>(h, addr, info[3].As<Napi::Number>().Uint32Value());
     else if (type == "float") ok = WriteValue<float>(h, addr, info[3].As<Napi::Number>().FloatValue());
     else if (type == "double") ok = WriteValue<double>(h, addr, info[3].As<Napi::Number>().DoubleValue());
-    else if (type == "int64") { bool ls; ok = WriteValue<std::int64_t>(h, addr, info[3].As<Napi::BigInt>().Int64Value(&ls)); }
-    else if (type == "uint64") { bool ls; ok = WriteValue<std::uint64_t>(h, addr, info[3].As<Napi::BigInt>().Uint64Value(&ls)); }
-    else if (type == "pointer") { bool ls; ok = WriteValue<std::uintptr_t>(h, addr, static_cast<std::uintptr_t>(info[3].As<Napi::BigInt>().Uint64Value(&ls))); }
+    else if (type == "int64") ok = WriteValue<std::int64_t>(h, addr, static_cast<std::int64_t>(u64));
+    else if (type == "uint64") ok = WriteValue<std::uint64_t>(h, addr, u64);
+    else if (type == "pointer") ok = WriteValue<std::uintptr_t>(h, addr, static_cast<std::uintptr_t>(u64));
     else { Napi::TypeError::New(env, "unknown type " + type).ThrowAsJavaScriptException(); return env.Null(); }
     return Napi::Boolean::New(env, ok);
   } catch (...) {
@@ -322,7 +363,9 @@ Napi::Value WriteValueSync(const Napi::CallbackInfo& info) {
 // gaps/unreadable spans. Only throws if the handle is invalid for VirtualQueryEx.
 Napi::Value ReadSafeSync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,address,size)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsNumber()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number,size:number)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   double sizeD = info[2].As<Napi::Number>().DoubleValue();
@@ -374,7 +417,9 @@ Napi::Value ReadSafeSync(const Napi::CallbackInfo& info) {
 // flushInstructions(handle, address, size) -> boolean  (FlushInstructionCache)
 Napi::Value FlushInstructionsSync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
-  if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,address,size)").ThrowAsJavaScriptException(); return env.Null(); }
+  if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsNumber() || !info[2].IsNumber()) {
+    Napi::TypeError::New(env, "expected (handle:number,address:number,size:number)").ThrowAsJavaScriptException(); return env.Null();
+  }
   HANDLE h = reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(info[0].As<Napi::Number>().DoubleValue()));
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   auto size = static_cast<SIZE_T>(info[2].As<Napi::Number>().DoubleValue());
@@ -742,12 +787,6 @@ Napi::Value GetThreadContextSync(const Napi::CallbackInfo& info) {
   o.Set("dr7", Napi::BigInt::New(env, static_cast<std::uint64_t>(ctx.Dr7)));
   o.Set("eflags", Napi::BigInt::New(env, static_cast<std::uint64_t>(ctx.EFlags)));
   return o;
-}
-
-static bool JsToU64(const Napi::Value& v, std::uint64_t& out) {
-  if (v.IsBigInt()) { bool ls; out = v.As<Napi::BigInt>().Uint64Value(&ls); return true; }
-  if (v.IsNumber()) { out = static_cast<std::uint64_t>(v.As<Napi::Number>().DoubleValue()); return true; }
-  return false;
 }
 
 // setThreadContext(tid, { rip?, rsp?, rbp?, dr0?..dr3?, dr6?, dr7?, eflags? }) -> boolean
