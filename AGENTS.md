@@ -22,6 +22,14 @@ This file distills the durable, repo-specific knowledge an agent (or contributor
 - **`bun fmt` needs Bun ≥1.4.4** (`packageManager` pins it). `.gitattributes` `* text=auto eol=lf` — Windows checkout keeps LF or fmt flags everything.
 - **tsdown ≥0.23.3 uses `Promise.withResolvers`** — Node 22+ only for the _build_; the produced output runs on Node 20+. `engines: ">=22"`.
 - **npm `workspace:*`**: bun resolves workspace deps to `packages/*` directly; `bindings`' `exports`/`main` point at `src/index.ts` in dev (bun eats TS), `dist/` only exists after build.
+- **Release pipeline (release-please.yml) — hard-won, do not regress**:
+  - **Lockstep + sequential publish**: the 4 packages always ship one version together. The `publish` job is ONE sequential job in dependency order `bindings -> core -> cli -> mcp`; a failure aborts the rest, so a partial release (e.g. core live without its bindings dep) can never ship. Do NOT re-add a parallel matrix.
+  - **`npm publish` ships `workspace:*` verbatim** -> `npm install` fails `EUNSUPPORTEDPROTOCOL`. The `rewrite workspace deps` step replaces `workspace:*` with `^<release-version>` (read from the resolved tag) in each package.json BEFORE publish. `bun publish` rewrites it natively but has NO OIDC Trusted-Publisher support (`missing authentication`).
+  - **`prebuildify` needs `npm run`, not `bun run`**: it shells out to `node-gyp.cmd`; only `npm run` puts the npm-bundled node-gyp bin on PATH. `bun run` (or a manual PATH prepend) fails `'node-gyp.cmd' is not recognized`.
+  - **`bun publish` does not support `--provenance`** (errors before upload). npm publish is used; provenance attaches via OIDC automatically.
+  - **`actions/setup-node` writes a literal `XXXXX-XXXXX` placeholder to `NODE_AUTH_TOKEN`** when no token is given (the OIDC path). It must be cleared/absent for the OIDC exchange; a stray real token also bypasses OIDC.
+  - **Stale tag collision**: if a release's publish fails AFTER release-please created the git tags + GH releases, re-running hits `tag_name already_exists`. Clean the stale `pkg@x.y.z` tags + releases, bump `release-as` to a fresh prerelease, and let release-please regenerate.
+  - **npm propagation is slow and uneven**: a publish `+` + provenance means accepted, but the version can take 15-45 min to appear in `dist-tags`/`versions` — packages with native `.node` binaries and rewritten deps lag most. A missing dist-tag right after publish is propagation, not failure.
 
 ## Common tasks
 
