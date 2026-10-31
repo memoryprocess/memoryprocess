@@ -74,12 +74,10 @@ jobs:
         working-directory: packages/bindings
         shell: pwsh
         run: |
-          # prebuildify shells out to `node-gyp.cmd` -- put the npm-bundled
-          # node-gyp bin on PATH so it resolves (bun run does not add it).
-          $nodeGyp = (Get-Command node).Source | Split-Path -Parent
-          $nodeGyp = Join-Path $nodeGyp 'node_modules\npm\node_modules\node-gyp\bin'
-          if (Test-Path $nodeGyp) { $env:PATH = "$nodeGyp;$env:PATH" }
-          bun run prebuild:all
+          # `npm run` (not `bun run`) is required: prebuildify shells out to
+          # `node-gyp.cmd`, and only npm puts the npm-bundled node-gyp bin on
+          # PATH. bun run does not add it -> 'node-gyp.cmd is not recognized'.
+          npm run prebuild:all
           if ($LASTEXITCODE -ne 0) { throw "prebuild failed" }
       - name: resolve release tag per package
         id: tags
