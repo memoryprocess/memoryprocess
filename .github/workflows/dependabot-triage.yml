@@ -1,0 +1,133 @@
+name: Dependabot Triage
+
+# Runs Devin CLI (model: swe-2-high) on every Dependabot PR: the agent
+# reads the diff + CI status and decides MERGE / CLOSE / ESCALATE.
+# - MERGE    -> auto-squash-merge (waits for required checks via --auto)
+# - CLOSE    -> closes the PR with the agent's reason
+# - ESCALATE -> comments so a human reviews (default for risky changes)
+# The Devin credential comes from a `DEVIN_API_KEY` repo secret -- the
+# `windsurf_api_key` from the maintainer's local devin credentials.toml.
+# The model is pinned to `swe-2-high` (free tier, 262K context) -- change
+# the `--model` flag to use another.
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  # Manual re-triage of an existing Dependabot PR -- the pull_request
+  # trigger only fires on new events, so open a dispatch to re-run the
+  # agent on a PR that was opened before this workflow landed.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Dependabot PR number to triage'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  triage:
+    if: github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: install devin cli
+        shell: pwsh
+        run: |
+          # Install the Devin CLI binary directly. The published
+          # install.ps1 ends with `devin setup` -- an interactive auth
+          # wizard that hangs forever in CI -- so we replicate its
+          # download steps and skip the wizard. Credentials come from
+          # credentials.toml written in the next step.
+          $ProgressPreference = 'SilentlyContinue'
+          $manifest = Invoke-RestMethod "https://static.devin.ai/cli/current/manifest.json" -TimeoutSec 60
+          $target = "x86_64-pc-windows"
+          $bundle = $manifest.platforms.$target
+          if (-not $bundle) { throw "no devin bundle for $target in manifest" }
+          $zip = "$env:RUNNER_TEMP\devin-bundle.zip"
+          Invoke-WebRequest -Uri $bundle.url -OutFile $zip -UseBasicParsing -TimeoutSec 300
+          $fs = [IO.File]::OpenRead($zip)
+          $hash = ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($fs))).Replace('-','').ToLower()
+          $fs.Close()
+          if ($hash -ne $bundle.sha256.ToLower()) { throw "bundle sha256 mismatch: got $hash" }
+          $dest = "$env:LOCALAPPDATA\devin\cli"
+          New-Item $dest -ItemType Directory -Force | Out-Null
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($zip, $dest)
+          $exe = Get-ChildItem $dest -Recurse -Filter devin.exe | Select-Object -First 1
+          if (-not $exe) { throw "devin.exe not found in bundle" }
+          $env:Path = "$($exe.DirectoryName);$env:Path"
+          "$($exe.DirectoryName)" >> $env:GITHUB_PATH
+          & $exe.FullName version
+
+      - name: write devin credentials
+        shell: pwsh
+        run: |
+          $dir = "$env:APPDATA\devin"
+          New-Item $dir -ItemType Directory -Force | Out-Null
+          $toml = @"
+          windsurf_api_key = "$env:DEVIN_API_KEY"
+          api_server_url = "https://server.codeium.com"
+          devin_webapp_host = "https://app.devin.ai"
+          devin_api_url = "https://api.devin.ai"
+          "@
+          [IO.File]::WriteAllText("$dir\credentials.toml", $toml, [Text.UTF8Encoding]::new($false))
+          devin auth status
+        env:
+          DEVIN_API_KEY: ${{ secrets.DEVIN_API_KEY }}
+
+      - name: run devin triage (swe-2-high)
+        id: triage
+        shell: pwsh
+        timeout-minutes: 8
+        env:
+          DEVIN_MODEL: swe-2-high
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+        run: |
+          $prompt = @"
+          Triage Dependabot PR #$env:PR_NUMBER for repo memoryprocess/memoryprocess.
+          Run ``gh pr diff $env:PR_NUMBER`` to read the diff and ``gh pr checks $env:PR_NUMBER`` for CI status.
+          The repo is a Bun workspaces monorepo (@memoryprocess/*, a Windows process-memory toolkit) using
+          release-please + npm OIDC publishing. .github/workflows changes, package.json dep bumps, and
+          binding.gyp are high-risk surfaces per CODEOWNERS.
+
+          Decide ONE verdict and put it on the LAST line exactly as:
+          VERDICT: MERGE
+          VERDICT: CLOSE
+          VERDICT: ESCALATE
+
+          Rules:
+          - MERGE if it is a safe, non-breaking update (patch/minor of a dev-dep or a routine action version
+            bump) and the risk is covered by the required CI gate.
+          - CLOSE if the change is unwanted (presents a version the project intentionally froze or replaces a
+            deliberate pin).
+          - ESCALATE if it is a major/breaking change to an action the release pipeline depends on, a
+            workspace dependency version change, a workflow change, or anything needing human judgement.
+          Give 2-3 short sentences of reasoning FIRST, then the VERDICT line.
+          "@
+          $out = devin -p $prompt --model swe-2-high --permission-mode dangerous --respect-workspace-trust false 2>&1 | Out-String
+          $out
+          if ($out -match 'VERDICT:\s*(\w+)') { "verdict=$($Matches[1])" >> $env:GITHUB_OUTPUT } else { throw "no VERDICT in devin output" }
+
+      - name: act on verdict
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          VERDICT: ${{ steps.triage.outputs.verdict }}
+        run: |
+          if ($env:VERDICT -eq 'MERGE') {
+            gh pr merge $env:PR_NUMBER --squash --auto --repo memoryprocess/memoryprocess
+            gh pr comment $env:PR_NUMBER --repo memoryprocess/memoryprocess --body "Devin triage (swe-2-high): MERGE -- auto-merging once required checks pass."
+          } elseif ($env:VERDICT -eq 'CLOSE') {
+            gh pr close $env:PR_NUMBER --repo memoryprocess/memoryprocess --comment "Devin triage (swe-2-high): CLOSE -- see agent reasoning above."
+          } else {
+            gh pr comment $env:PR_NUMBER --repo memoryprocess/memoryprocess --body "Devin triage (swe-2-high): ESCALATE -- needs @JoShMiQueL review before merge."
+          }
