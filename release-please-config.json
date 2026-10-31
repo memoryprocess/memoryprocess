@@ -1,7 +1,7 @@
 {
   "release-type": "node",
   "versioning": "prerelease",
-  "prerelease-type": "dev",
+  "prerelease-type": "beta",
   "prerelease": true,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
