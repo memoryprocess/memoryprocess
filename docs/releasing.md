@@ -25,17 +25,19 @@ Trusted Publisher on npmjs.com points each package at `release-please.yml`.
 
 npm **dist-tags** separate what's installable by default from opt-in channels:
 
-| Tag      | Installs on `npm i <pkg>` | Purpose                                          |
-| -------- | ------------------------- | ------------------------------------------------ |
-| `latest` | [x] the only default      | **Stable.** Currently `0.0.1`.                   |
-| `dev`    | [ ] (needs `@dev`)        | `*.*.*-dev.N` auto channel. Currently `0.0.1`.   |
-| `beta`   | [ ] (needs `@beta`)       | Stabilization preview. Currently `0.0.3-beta.9`. |
-| `next`   | [ ] (needs `@next`)       | Optional preview channel before `latest`.        |
+| Tag      | Installs on `npm i <pkg>` | Purpose                                                                                                |
+| -------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `latest` | [x] the only default      | **Stable.** Currently `0.0.1`.                                                                         |
+| `beta`   | [ ] (needs `@beta`)       | Auto per-merge prerelease. Currently `0.0.3-beta.9` -- the live dev line.                              |
+| `dev`    | [ ] (needs `@dev`)        | Alternate prerelease channel (fires only if `prerelease-type` is changed to `dev`). Currently `0.0.1`. |
+| `next`   | [ ] (needs `@next`)       | Optional preview channel before `latest`.                                                              |
 
-With `versioning: "prerelease"` + `prerelease-type` in
-`release-please-config.json`, release-please proposes prerelease versions;
-the publish step derives the dist-tag from the version suffix
-(`-dev`/`-next`/`-beta`/`-alpha` -> that channel; no prerelease -> `latest`).
+With `versioning: "prerelease"` + `prerelease-type: "beta"` in
+`release-please-config.json`, release-please proposes `-beta.N` versions; the
+publish step derives the dist-tag from the version suffix (`-beta` -> `beta`;
+`-dev`/`-next`/`-alpha` would map the same way; no prerelease -> `latest`).
+The auto per-merge channel is therefore `beta`, not `dev` -- `dev` is only the
+channel name if `prerelease-type` is switched to `dev`.
 
 ## Promoting to `latest` (a real stable release)
 

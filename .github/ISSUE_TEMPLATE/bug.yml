@@ -1,4 +1,4 @@
-name: 🐛 Bug report
+name: Bug report
 description: Something is broken in the memoryprocess toolkit
 title: 'bug: '
 labels: [bug]
@@ -34,7 +34,7 @@ body:
     attributes:
       label: Environment
       description: Windows version, Node/Bun version, package version
-      placeholder: 'Windows 11 24H2, Bun 1.4.4, @memoryprocess/core@0.0.1-dev.1'
+      placeholder: 'Windows 11 24H2, Bun 1.4.4, @memoryprocess/core@0.0.1'
     validations:
       required: true
   - type: textarea

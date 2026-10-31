@@ -9,7 +9,7 @@
 .github/dependabot.yml @JoShMiQueL
 
 # release-please manifest + config -- decides versions, channels, tags.
-release-please-config.json
+release-please-config.json   @JoShMiQueL
 .release-please-manifest.json   @JoShMiQueL
 
 # Native build config -- the Node-26 thin-LTO workaround lives here;
