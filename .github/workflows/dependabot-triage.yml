@@ -40,13 +40,31 @@ jobs:
       - name: install devin cli
         shell: pwsh
         run: |
-          # Install the Devin CLI. The published install script is the
-          # canonical source; fall back to the npm/bun package if needed.
-          irm https://cli.devin.ai/install.ps1 -UseBasicParsing | iex
-          if (-not (Get-Command devin -ErrorAction SilentlyContinue)) {
-            throw "devin cli did not install"
-          }
-          devin version
+          # Install the Devin CLI binary directly. The published
+          # install.ps1 ends with `devin setup` -- an interactive auth
+          # wizard that hangs forever in CI -- so we replicate its
+          # download steps and skip the wizard. Credentials come from
+          # credentials.toml written in the next step.
+          $ProgressPreference = 'SilentlyContinue'
+          $manifest = Invoke-RestMethod "https://static.devin.ai/cli/current/manifest.json" -TimeoutSec 60
+          $target = "x86_64-pc-windows"
+          $bundle = $manifest.platforms.$target
+          if (-not $bundle) { throw "no devin bundle for $target in manifest" }
+          $zip = "$env:RUNNER_TEMP\devin-bundle.zip"
+          Invoke-WebRequest -Uri $bundle.url -OutFile $zip -UseBasicParsing -TimeoutSec 300
+          $fs = [IO.File]::OpenRead($zip)
+          $hash = ([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($fs))).Replace('-','').ToLower()
+          $fs.Close()
+          if ($hash -ne $bundle.sha256.ToLower()) { throw "bundle sha256 mismatch: got $hash" }
+          $dest = "$env:LOCALAPPDATA\devin\cli"
+          New-Item $dest -ItemType Directory -Force | Out-Null
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($zip, $dest)
+          $exe = Get-ChildItem $dest -Recurse -Filter devin.exe | Select-Object -First 1
+          if (-not $exe) { throw "devin.exe not found in bundle" }
+          $env:Path = "$($exe.DirectoryName);$env:Path"
+          "$($exe.DirectoryName)" >> $env:GITHUB_PATH
+          & $exe.FullName version
 
       - name: write devin credentials
         shell: pwsh
@@ -67,6 +85,7 @@ jobs:
       - name: run devin triage (swe-2-high)
         id: triage
         shell: pwsh
+        timeout-minutes: 8
         env:
           DEVIN_MODEL: swe-2-high
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
