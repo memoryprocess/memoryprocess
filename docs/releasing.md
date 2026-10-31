@@ -1,51 +1,101 @@
-# Releasing — channels, dist-tags, and hotfixes
+# Releasing -- channels, dist-tags, and hotfixes
+
+## How the pipeline actually works (verified end-to-end 2026-10-31)
+
+`release-please.yml` does TWO jobs in one workflow (a `push` to `main` cannot
+fire a second workflow -- GITHUB_TOKEN-created tags/releases never trigger
+other workflows, the GitHub recursion guard):
+
+1. `release-please` (ubuntu): runs `release-please-action` on every push to
+   `main`, opens/updates a release PR, and on merge creates the
+   `pkg@x.y.z` git tags + GitHub releases.
+2. `publish` (windows): runs only when `releases_created == 'true'`. ONE
+   sequential job -- `bun install` -> `build all packages` -> `prebuild
+   bindings (N-API ABIs)` -> `resolve release tag per package` -> `pick
+   dist-tag from version` -> `rewrite workspace deps` -> `npm publish`
+   for `bindings core cli mcp` in that order. Any failure aborts the rest,
+   so a partial release (a package live without its dependency) can never
+   ship.
+
+**Credentials:** npm OIDC Trusted Publishing (`id-token: write`, no secrets).
+Trusted Publisher on npmjs.com points each package at `release-please.yml`.
+`NPM_TOKEN` repo secret exists only as a manual fallback.
 
 ## Channels
 
 npm **dist-tags** separate what's installable by default from opt-in channels:
 
-| Tag      | Installs on `npm i <pkg>` | Purpose                                                                                                            |
-| -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `latest` | ✅ the only default       | **Stable.** Empty until the maintainer authorizes a real release — `npm i` errors "no matching version" till then. |
-| `dev`    | ❌ (needs `@dev`)         | Auto-published `*.*.*-dev.N` per merge to `main`. Iterate freely.                                                  |
-| `next`   | ❌ (needs `@next`)        | Optional stabilization preview before promoting to `latest`.                                                       |
+| Tag      | Installs on `npm i <pkg>` | Purpose |
+| -------- | ------------------------- | ------- |
+| `latest` | ✅ the only default        | **Stable.** Currently `0.0.1`. |
+| `dev`    | ❌ (needs `@dev`)         | `*.*.*-dev.N` auto channel. Currently `0.0.1`. |
+| `beta`   | ❌ (needs `@beta`)        | Stabilization preview. Currently `0.0.3-beta.9`. |
+| `next`   | ❌ (needs `@next`)        | Optional preview channel before `latest`. |
 
-release-please (manifest mode) versions each package independently. With `versioning: "prerelease"` + `prerelease-type: "dev"` in `release-please-config.json`, merges to `main` produce `0.0.x-dev.N` versions and `publish.yml` pushes them to `npm --tag dev`.
+With `versioning: "prerelease"` + `prerelease-type` in
+`release-please-config.json`, release-please proposes prerelease versions;
+the publish step derives the dist-tag from the version suffix
+(`-dev`/`-next`/`-beta`/`-alpha` -> that channel; no prerelease -> `latest`).
 
-**The `latest` gate:** nothing here ever `npm dist-tag ... latest` or publishes a non-prerelease version automatically. Promoting `dev`→`latest` is a manual `npm dist-tag add @memoryprocess/<pkg>@X.Y.Z latest` the maintainer triggers.
+## Promoting to `latest` (a real stable release)
 
-## Promoting dev → latest (a real stable release)
+`latest` publishes are automatable, but the _decision_ to mark something
+stable stays manual -- a bad merge should never auto-promote:
 
-`latest` publishes are automatable, but the _decision_ to mark something stable stays manual — a bad merge should never auto-promote to `latest`. The flow, when you decide `main` is release-ready:
+1. Pin the version: add `"release-as": "X.Y.Z"` (a stable semver, no
+   prerelease suffix) to the packages in `release-please-config.json`.
+2. PR + merge that change.
+3. release-please opens a release PR proposing `X.Y.Z` -> merge -> it tags
+   `pkg@X.Y.Z` + creates the GH release.
+4. The publish job resolves the tag, sees a **non-prerelease** version ->
+   `npm publish --tag latest` via OIDC.
+5. Remove `release-as` after (next merge re-versions normally).
 
-1. Pin the version in `release-please-config.json` — add `"release-as": "X.Y.Z"` to the package(s) you're stabilizing (e.g. `"release-as": "1.0.0"`).
-2. Open a normal PR with that change → merge.
-3. release-please opens a release PR proposing `X.Y.Z` (a **stable** version, not `-dev`) → merge → it tags `pkg@X.Y.Z`.
-4. `publish.yml` fires on that tag. **To publish to `latest` (not `dev`), the workflow picks the tag from the version**: a non-prerelease version → `--tag latest`; a `-dev`/`-next` version → `--tag dev`/`next`. The maintainer-authored `release-as` is the trigger — nothing reaches `latest` without it.
-5. Remove `release-as` after (next merge re-versions normally to `-dev.N`).
+So `latest` is gated on a deliberate maintainer `release-as` commit --
+automated once you pull the trigger, never auto-promoted by a merge.
 
-So `latest` is gated on a deliberate `release-as` commit — automated once you pull the trigger, never auto-promoted by a merge. `dev`/`next`/`beta` stay auto channels.
+## Publish-mechanics rules (do not regress)
+
+These burned us; each is now enforced in `release-please.yml` + `AGENTS.md`:
+
+- **`workspace:*` must be rewritten before `npm publish`.** `npm publish`
+  uploads `workspace:*` verbatim -> `npm install` fails
+  `EUNSUPPORTEDPROTOCOL`. The `rewrite workspace deps` step replaces it
+  with `^<version>` from the resolved tag.
+- **Publish is sequential + dependency-ordered** (`bindings -> core -> cli
+  -> mcp`), never a parallel matrix -- a mid-chain failure leaves a broken
+  partial release on npm.
+- **`prebuildify` runs via `npm run`**, not `bun run` (needs the npm-bundled
+  `node-gyp` on PATH).
+- **`bun publish` is not used**: it cannot do OIDC Trusted Publishing
+  (`missing authentication`) and rejects `--provenance`.
+- **Stale tags**: if publish fails after release-please made the tags, clean
+  the `pkg@x.y.z` tags + releases and bump `release-as` before re-running.
 
 ## Hotfix flow (critical bug on a released stable)
 
-Once a `latest` version exists, a critical fix shouldn't go through `main`'s dev line (which may have unrelated half-work). The model:
+Once a `latest` version exists, a critical fix shouldn't ride `main`'s
+prerelease line (which may carry unrelated half-work):
 
 ```
-main  ──●────●────●───  (dev channel, keeps moving)
+main  ──*----*----*--  (prerelease channel, keeps moving)
          \
-          └─ tag core@1.2.0  (the released stable)
+          -- tag core@1.2.0  (the released stable)
                   \
-hotfix/1.2.1  ────● fix → release-as:1.2.1 → publish to latest
+hotfix/1.2.1  ----* fix -> release-as:1.2.1 -> publish to latest
 ```
 
-1. Branch off the release tag: `git checkout -b hotfix/core-1.2.1 core@1.2.0` (or the relevant `bindings@x.y.z` tag).
-2. Commit the fix (conventional `fix:`), PR it into the hotfix branch.
-3. Run release-please in **branch mode** against the hotfix branch with `release-as` pinning the patch (`release-please --target-branch hotfix/core-1.2.1 --release-as 1.2.1`) → it opens a release PR on that branch → merge → tag → `publish.yml` fires.
-4. **Publish to `latest`**, not `dev` — a stable hotfix is exactly what `latest` is for. (publish.yml would need a `latest` path enabled for hotfix tags; that's a deliberately manual step today.)
-5. Cherry-pick the fix back to `main` (`git cherry-pick <sha>` → conventional `fix:`) so it lands in the next `-dev.N` and doesn't regress.
-
-Until the first `latest` release exists there's nothing to hotfix — this flow is the documented plan, not yet wired, because wiring a `latest` publish path now would weaken the "never publish latest" gate.
+1. Branch off the release tag: `git checkout -b hotfix/core-1.2.1 core@1.2.0`.
+2. Commit the fix (conventional `fix:`), PR into the hotfix branch.
+3. Run release-please in branch mode against the hotfix branch with
+   `release-as` pinning the patch -> release PR on that branch -> merge ->
+   tag -> publish fires (`--tag latest` because the version is stable).
+4. Cherry-pick the fix back to `main` so it lands in the next prerelease.
 
 ## Why not git-flow (develop/release branches)?
 
-The trunk stays `main`-only: every change is a PR + full CI + squash. `dev` IS the integration line — prerelease versions make it installable-but-clearly-not-stable. A `develop` branch would just be a second trunk to keep in sync; dist-tag channels give the same safety without branch overhead. Hotfixes branch off a tag, not off a long-lived branch.
+The trunk stays `main`-only: every change is a PR + full CI + squash. The
+prerelease channel IS the integration line -- installable but clearly not
+stable. A `develop` branch would just be a second trunk to keep in sync;
+dist-tag channels give the same safety without branch overhead. Hotfixes
+branch off a tag, not off a long-lived branch.
