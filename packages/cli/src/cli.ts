@@ -31,7 +31,12 @@ async function main(): Promise<number> {
   }
   // `--help`/`-h`/`help` print usage -- check before parseFlags so the flag
   // isn't rejected as unknown. Bare `mproc` also prints usage (exit 1).
-  if (argv.length === 0 || argv.includes('--help') || argv.includes('-h') || argv[0] === 'help') {
+  if (
+    argv.length === 0 ||
+    argv.includes('--help') ||
+    argv.includes('-h') ||
+    argv[0] === 'help'
+  ) {
     console.log(USAGE);
     return argv.length === 0 ? 1 : 0;
   }
