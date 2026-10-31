@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.0.3-beta.3](https://github.com/memoryprocess/memoryprocess/compare/cli@0.0.3-beta.3...cli@0.0.3-beta.3) (2026-10-31)
+
+
+### Bug Fixes
+
+* **release:** drop --provenance from bun publish ([#36](https://github.com/memoryprocess/memoryprocess/issues/36)) ([b71c920](https://github.com/memoryprocess/memoryprocess/commit/b71c920cfe48fce73f921a4208e6ac486ee23d75))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @memoryprocess/core bumped to 0.0.3-beta.3
+
 ## [0.0.3-beta.3](https://github.com/memoryprocess/memoryprocess/compare/cli@0.0.3-beta.2...cli@0.0.3-beta.3) (2026-10-31)
 
 ### Bug Fixes
