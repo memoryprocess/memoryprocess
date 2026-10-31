@@ -1,9 +1,9 @@
 /**
- * mproc end-to-end tests — spawn the real CLI against victim.exe where the
+ * mproc end-to-end tests -- spawn the real CLI against victim.exe where the
  * address table is known, and against process.pid for self-reads.
  *
  * The CLI is `src/cli.ts` run under bun; tests spawn it the way an agent
- * would (`bun src/cli.ts …`), parse stdout, and assert on the envelope.
+ * would (`bun src/cli.ts ...`), parse stdout, and assert on the envelope.
  */
 import { describe, expect, test, beforeAll, afterAll } from 'bun:test';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -13,7 +13,7 @@ import { existsSync, rmSync } from 'node:fs';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const CLI = join(dir, '..', 'src', 'cli.ts');
-// reuse the core test victim — the same binary, one directory up
+// reuse the core test victim -- the same binary, one directory up
 const VICIM_EXE = join(dir, '..', '..', 'core', 'tests', 'victim.exe');
 
 interface Victim {
@@ -89,7 +89,7 @@ afterAll(() => {
   rmSync(join(dir, '.mproc'), { recursive: true, force: true });
 });
 
-describe('mproc — discovery', () => {
+describe('mproc -- discovery', () => {
   test('list outputs pids incl. the victim', async () => {
     const r = await mproc(['list', '--json']);
     expect(r.code).toBe(0);
@@ -124,7 +124,7 @@ describe('mproc — discovery', () => {
   });
 });
 
-describe('mproc — read/write', () => {
+describe('mproc -- read/write', () => {
   test('read i32 returns the live value', async () => {
     const r = await mproc([
       'read',
@@ -219,14 +219,14 @@ describe('mproc — read/write', () => {
       (await mproc(['read', String(victim.pid), a, 'u32', '--json'])).stdout,
     ).data.value;
     // g_u32 is static (the victim loop never touches it), so v0 is the exact
-    // pre-write value — the undo must restore it byte-for-byte.
+    // pre-write value -- the undo must restore it byte-for-byte.
     expect(vAfter).toBe(v0);
   });
 });
 
-describe('mproc — scan/next via state file', () => {
+describe('mproc -- scan/next via state file', () => {
   test('scan writes a state file next can refine', async () => {
-    // Full-VA scan for a live counter is timing-fragile — bound it to
+    // Full-VA scan for a live counter is timing-fragile -- bound it to
     // victim.exe's module via a raw start/end range covering .data, the same
     // way core tests seed hits (scanValue(start,end)).
     const state = join(dir, '.mproc', `scan-${victim.pid}.json`);
@@ -257,7 +257,7 @@ describe('mproc — scan/next via state file', () => {
     expect(hits).toContain(`0x${victim.addr.g_u32!.toString(16)}`);
     expect(existsSync(state)).toBe(true);
 
-    // 'unchanged' on a never-mutated value keeps every hit — proves the
+    // 'unchanged' on a never-mutated value keeps every hit -- proves the
     // state file round-trips and nextScan relative modes work end-to-end.
     const n = await mproc([
       'next',
@@ -289,7 +289,7 @@ describe('mproc — scan/next via state file', () => {
   });
 });
 
-describe('mproc — pointers', () => {
+describe('mproc -- pointers', () => {
   test("resolves 'mod+rva,off' chains", async () => {
     // g_ppp points at g_pp: 'victim.exe+rva(g_ppp),0x0' resolves to &g_pp.
     const mods = envelope(
@@ -308,12 +308,12 @@ describe('mproc — pointers', () => {
     const env = envelope(r.stdout);
     expect(env.ok).toBe(true);
     expect(env.data[0].name).toBe('pp');
-    // resolvePointer reads the pointer AT base+0 → dereferences g_ppp → &g_pp
+    // resolvePointer reads the pointer AT base+0 -> dereferences g_ppp -> &g_pp
     expect(BigInt(env.data[0].addr)).toBe(victim.addr.g_pp!);
   });
 });
 
-describe('mproc — attach session', () => {
+describe('mproc -- attach session', () => {
   test('piped stdin: describe + read + exit, one JSON result per line', async () => {
     const a = `0x${victim.addr.g_i32!.toString(16)}`;
     const r = await mproc(
@@ -337,7 +337,7 @@ describe('mproc — attach session', () => {
     expect(r.code).toBe(0);
   });
 
-  test('session write → undo works inside one attach (writeLog lives in-session)', async () => {
+  test('session write -> undo works inside one attach (writeLog lives in-session)', async () => {
     const a = `0x${victim.addr.g_i64!.toString(16)}`;
     const r = await mproc(
       ['attach', String(victim.pid), '--json'],
@@ -355,7 +355,7 @@ describe('mproc — attach session', () => {
   });
 });
 
-describe('mproc — introspection', () => {
+describe('mproc -- introspection', () => {
   test('--version prints name + semver', async () => {
     const r = await mproc(['--version']);
     expect(r.code).toBe(0);
@@ -426,7 +426,7 @@ describe('mproc — introspection', () => {
   });
 });
 
-describe('mproc — widened int types', () => {
+describe('mproc -- widened int types', () => {
   test('read u8/u16/i8/i16 hit the narrow decode path', async () => {
     for (const t of ['u8', 'u16', 'i8', 'i16']) {
       const r = await mproc([
@@ -494,8 +494,8 @@ describe('mproc — widened int types', () => {
   });
 });
 
-describe('mproc — errors', () => {
-  test('unknown command → exit 1 with INVALID_ARGS envelope', async () => {
+describe('mproc -- errors', () => {
+  test('unknown command -> exit 1 with INVALID_ARGS envelope', async () => {
     const r = await mproc(['frobnicate', '--json']);
     expect(r.code).toBe(1);
     const env = envelope(r.stdout);
@@ -503,23 +503,23 @@ describe('mproc — errors', () => {
     expect(env.error.code).toBe('INVALID_ARGS');
   });
 
-  test('missing args → exit 1', async () => {
+  test('missing args -> exit 1', async () => {
     const r = await mproc(['read', '--json']);
     expect(r.code).toBe(1);
     expect(envelope(r.stdout).error.code).toBe('INVALID_ARGS');
   });
 
-  test('unknown pid → open fails with a typed code', async () => {
+  test('unknown pid -> open fails with a typed code', async () => {
     const r = await mproc(['describe', '2147483000', '--json']);
     expect(r.code).toBe(1);
     const env = envelope(r.stdout);
     expect(env.ok).toBe(false);
     // the native layer reports OPEN_FAILED for a pid OpenProcess rejects;
-    // PROCESS_NOT_FOUND only fires for name lookups — either is a typed code.
+    // PROCESS_NOT_FOUND only fires for name lookups -- either is a typed code.
     expect(['PROCESS_NOT_FOUND', 'OPEN_FAILED']).toContain(env.error.code);
   });
 
-  test('bad address → error envelope, not a crash', async () => {
+  test('bad address -> error envelope, not a crash', async () => {
     const r = await mproc([
       'read',
       String(victim.pid),

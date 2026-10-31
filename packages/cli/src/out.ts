@@ -1,10 +1,10 @@
 /**
- * Output helpers — the `--json` contract lives here.
+ * Output helpers -- the `--json` contract lives here.
  *
  * Conventions (docs/json-conventions.md):
- *  - bigint → '0x'-prefixed hex string (addresses, pointers, 64-bit values).
- *  - JSON mode → machine output on stdout; human mode → aligned tables.
- *  - Errors → { ok:false, error:{code,message,win32code?} } on stdout (JSON
+ *  - bigint -> '0x'-prefixed hex string (addresses, pointers, 64-bit values).
+ *  - JSON mode -> machine output on stdout; human mode -> aligned tables.
+ *  - Errors -> { ok:false, error:{code,message,win32code?} } on stdout (JSON
  *    mode) or stderr (human mode), exit code 1 either way.
  */
 import { writeSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { writeSync } from 'node:fs';
 export const hex = (v: number | bigint): string =>
   `0x${BigInt(v).toString(16)}`;
 
-/** JSON.stringify replacer: bigint → '0x...' hex string, Buffer → hex string. */
+/** JSON.stringify replacer: bigint -> '0x...' hex string, Buffer -> hex string. */
 export function toJson(v: unknown): unknown {
   if (typeof v === 'bigint') return hex(v);
   if (Buffer.isBuffer(v)) return `0x${v.toString('hex')}`;
@@ -37,7 +37,7 @@ export function emitLine(obj: unknown): void {
   writeSync(1, `${jstr(obj)}\n`);
 }
 
-/** Progress/diagnostic line on stderr — never pollutes stdout data. */
+/** Progress/diagnostic line on stderr -- never pollutes stdout data. */
 export function emitProgress(obj: unknown): void {
   writeSync(2, `${jstr(obj)}\n`);
 }

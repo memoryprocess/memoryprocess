@@ -39,7 +39,7 @@ describe('pattern parse hardening (was: process abort)', () => {
 });
 
 describe('rel32 range checks', () => {
-  test('patchJump / patchCall throw when dst is outside ±2GB', () => {
+  test('patchJump / patchCall throw when dst is outside +/-2GB', () => {
     using proc = Process.open(victim.pid);
     const src = proc.alloc(0x1000);
     try {
@@ -80,7 +80,7 @@ describe('scanValue', () => {
       proc.writeInt32(buf, 0x5aa5cc33);
       const hits = await proc.scanValue(0x5aa5cc33, { type: 'int32' });
       expect(addrs(hits)).toContain(buf);
-      // hits carry the decoded value — the CE hit-list model
+      // hits carry the decoded value -- the CE hit-list model
       const mine = hits.find((h) => h.addr === buf)!;
       expect(mine.value).toBe(0x5aa5cc33);
     } finally {
@@ -157,7 +157,7 @@ describe('nextScan (refine)', () => {
     const cur = proc.readInt32(addr);
     await sleep(1100); // victim bumps g_i32 ~1/sec
     const now = proc.readInt32(addr);
-    if (now === cur) return; // unlucky timing window — skip rather than flake
+    if (now === cur) return; // unlucky timing window -- skip rather than flake
     const refined = await proc.nextScan([addr], now, { type: 'int32' });
     expect(addrs(refined)).toEqual([addr]);
     expect(refined[0]!.value).toBe(now);
@@ -244,7 +244,7 @@ describe('nextScan (refine)', () => {
         { type: 'between', lo: 100, hi: 299 },
         { type: 'int32' },
       );
-      // current values 100, 210, 295 — all inside [100, 299]
+      // current values 100, 210, 295 -- all inside [100, 299]
       expect(addrs(between)).toEqual([buf, buf + 0x40n, buf + 0x80n]);
 
       const ranged = await proc.nextScan(
@@ -269,7 +269,7 @@ describe('nextScan (refine)', () => {
     expect(addrs(first)).toEqual([addr]);
     await sleep(1100); // victim bumps g_counter ~1/sec
     const after = proc.readInt32(addr);
-    if (after === first[0]!.value) return; // unlucky timing — skip
+    if (after === first[0]!.value) return; // unlucky timing -- skip
     const inc = await proc.nextScan(
       first,
       { type: 'increased' },
@@ -396,7 +396,7 @@ describe('waitForExit', () => {
     const pid = Number(buf.match(/PID=(\d+)/)![1]);
     using proc = Process.open(pid);
 
-    // still running → timeout resolves null
+    // still running -> timeout resolves null
     const t0 = Date.now();
     const r1 = await proc.waitForExit(400);
     expect(r1).toBeNull();

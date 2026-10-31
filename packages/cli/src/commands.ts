@@ -1,5 +1,5 @@
 /**
- * Command handlers — the Process API as composable shell commands.
+ * Command handlers -- the Process API as composable shell commands.
  *
  * Each handler receives a Ctx; in one-shot mode `ctx.proc` is a freshly-opened
  * Process closed by the dispatcher, in `attach` mode it's the persistent one.
@@ -52,7 +52,7 @@ const ok = (ctx: Ctx, data: unknown) => emitOk(data);
 
 function needPos(ctx: Ctx, n: number, usage: string): void {
   if (ctx.pos.length < n)
-    throw new UsageError(`missing arguments — usage: ${usage}`);
+    throw new UsageError(`missing arguments -- usage: ${usage}`);
 }
 
 function num(v: number | bigint): number | string {
@@ -60,7 +60,7 @@ function num(v: number | bigint): number | string {
 }
 
 /* ---- narrow int pseudo-types (i8|u8|i16|u16) ----
- * readValueAt/writeValue only speak 4/8-byte core types — the narrows go
+ * readValueAt/writeValue only speak 4/8-byte core types -- the narrows go
  * through readBuffer/writeBuffer with Buffer LE (de)coding. Exported for
  * session.ts (attach-mode watch/freeze). */
 export function readNarrow(
@@ -148,7 +148,7 @@ function cmdDescribe(ctx: Ctx): void {
       ['BASE', 'SIZE', 'NAME'],
     ),
   );
-  if (omitted) console.log(`  … ${omitted} more`);
+  if (omitted) console.log(`  ... ${omitted} more`);
   console.log(`rwxRegions: ${d.rwxRegions.length}`);
 }
 
@@ -170,7 +170,7 @@ const MEM_TYPES: [number, string][] = [
   [0x20000, 'MEM_PRIVATE'],
 ];
 
-/** 'PAGE_READWRITE|PAGE_GUARD' or '0x…' for an unnamed protection mask. */
+/** 'PAGE_READWRITE|PAGE_GUARD' or '0x...' for an unnamed protection mask. */
 function protName(protection: number): string {
   const base = protection & 0xff;
   const named = PROT_NAMES.find(([v]) => v === base)?.[1];
@@ -182,7 +182,7 @@ function protName(protection: number): string {
 
 function cmdRegions(ctx: Ctx): void {
   const proc = ctx.proc!;
-  // regions() only walks committed allocations — state is always MEM_COMMIT.
+  // regions() only walks committed allocations -- state is always MEM_COMMIT.
   const regs = proc.regions().map((r) => ({
     base: hex(r.baseAddress),
     size: r.size,
@@ -199,7 +199,7 @@ function cmdRegions(ctx: Ctx): void {
       ['BASE', 'SIZE', 'PROTECT', 'STATE', 'TYPE'],
     ),
   );
-  if (omitted) console.log(`… ${omitted} more`);
+  if (omitted) console.log(`... ${omitted} more`);
   console.log(`${regs.length} regions`);
 }
 
@@ -303,7 +303,7 @@ function cmdWrite(ctx: Ctx): void {
   const raw = ctx.pos[2]!;
   const opts = { dryRun: ctx.flags.dry };
 
-  // Snapshot prior bytes BEFORE the write — the undo journal must hold the
+  // Snapshot prior bytes BEFORE the write -- the undo journal must hold the
   // pre-write state (snapshotting after would journal the just-written
   // value, making `undo` a no-op). Length = exactly what the write touches.
   const writeLen =
@@ -319,7 +319,7 @@ function cmdWrite(ctx: Ctx): void {
     try {
       priorBytes = proc.readBuffer(addr, writeLen).toString('hex');
     } catch {
-      priorBytes = null; // unreadable target — journaled as un-undoable
+      priorBytes = null; // unreadable target -- journaled as un-undoable
     }
   }
 
@@ -372,11 +372,11 @@ function cmdWrite(ctx: Ctx): void {
     };
     if (ctx.flags.json) return ok(ctx, preview);
     console.log(
-      `dry-run ${hex(r.addr)}: ${preview.current} → ${preview.would} (${r.bytes}B)`,
+      `dry-run ${hex(r.addr)}: ${preview.current} -> ${preview.would} (${r.bytes}B)`,
     );
     return;
   }
-  // Real write → journal the PRIOR bytes for cross-invocation `undo`.
+  // Real write -> journal the PRIOR bytes for cross-invocation `undo`.
   appendJournal(proc.pid, { addr: hex(addr), bytes: priorBytes });
   if (ctx.flags.json) return ok(ctx, { addr: hex(addr), written: true });
   console.log(`${hex(addr)} written`);
@@ -418,7 +418,7 @@ async function cmdScan(ctx: Ctx): Promise<void> {
         ['ADDR', 'VALUE'],
       ),
     );
-    if (omitted) console.log(`… ${omitted} more (use --limit)`);
+    if (omitted) console.log(`... ${omitted} more (use --limit)`);
     console.log(`${hits.length} hits`);
   }
   const statePath = ctx.flags.out ?? scanStatePath(proc.pid);
@@ -443,7 +443,7 @@ async function cmdNext(ctx: Ctx): Promise<void> {
   needPos(
     ctx,
     2,
-    'mproc next <pid> <state-file> <mode> [args…]  modes: exact V | changed | unchanged | increased | decreased | increasedBy V | decreasedBy V | between LO HI',
+    'mproc next <pid> <state-file> <mode> [args...]  modes: exact V | changed | unchanged | increased | decreased | increasedBy V | decreasedBy V | between LO HI',
   );
   const proc = ctx.proc!;
   const st = loadScan(ctx.pos[0]!);
@@ -483,7 +483,7 @@ async function cmdNext(ctx: Ctx): Promise<void> {
       break;
     default:
       throw new UsageError(
-        `unknown next mode '${modeName}' — exact|changed|unchanged|increased|decreased|increasedBy|decreasedBy|between`,
+        `unknown next mode '${modeName}' -- exact|changed|unchanged|increased|decreased|increasedBy|decreasedBy|between`,
       );
   }
   const hits = await proc.nextScan(storedToHits(st), mode, {
@@ -501,7 +501,7 @@ async function cmdNext(ctx: Ctx): Promise<void> {
         ['ADDR', 'VALUE'],
       ),
     );
-    if (omitted) console.log(`… ${omitted} more`);
+    if (omitted) console.log(`... ${omitted} more`);
     console.log(`${hits.length} hits`);
   }
   saveScan(ctx.pos[0]!, {
@@ -517,7 +517,7 @@ function cmdPointers(ctx: Ctx): void {
   needPos(
     ctx,
     1,
-    "mproc pointers <pid> '<name>:<mod+rva,off,off>'…  e.g. health:game.exe+0x1F2A3C,0x10,0x8",
+    "mproc pointers <pid> '<name>:<mod+rva,off,off>'...  e.g. health:game.exe+0x1F2A3C,0x10,0x8",
   );
   const proc = ctx.proc!;
   const defs = ctx.pos.map(parsePointerDef);
@@ -549,7 +549,7 @@ function cmdUndo(ctx: Ctx): void {
       proc.writeProtected(BigInt(e.addr), Buffer.from(e.bytes, 'hex'));
       reverted++;
     } catch {
-      /* target region gone — skip */
+      /* target region gone -- skip */
     }
   }
   saveJournal(proc.pid, j);
@@ -598,7 +598,7 @@ async function cmdWatch(ctx: Ctx): Promise<void> {
     emitLine({ type: 'watch', addr: hex(addr), valueType: core, ms });
   else
     console.error(
-      `watching ${hex(addr)} (${core}) every ${ms}ms — Ctrl-C to stop`,
+      `watching ${hex(addr)} (${core}) every ${ms}ms -- Ctrl-C to stop`,
     );
   await new Promise<void>((res) => {
     let prev: number | bigint | undefined;
@@ -609,7 +609,7 @@ async function cmdWatch(ctx: Ctx): Promise<void> {
           ? readNarrow(proc, addr, core)
           : proc.readValueAt(addr, core!);
       } catch {
-        return; // target may have exited — keep waiting for Ctrl-C
+        return; // target may have exited -- keep waiting for Ctrl-C
       }
       if (prev === undefined) prev = cur;
       else if (cur !== prev) {
@@ -622,7 +622,7 @@ async function cmdWatch(ctx: Ctx): Promise<void> {
             from: num(old),
             to: num(cur),
           });
-        else console.log(`${hex(addr)}: ${num(old)} → ${num(cur)}`);
+        else console.log(`${hex(addr)}: ${num(old)} -> ${num(cur)}`);
       }
     }, ms);
     const stop = () => {
@@ -651,7 +651,7 @@ async function cmdFreeze(ctx: Ctx): Promise<void> {
       ? BigInt(v)
       : Number(v);
   if (isNarrow(p.core)) {
-    // freeze() only speaks 4/8-byte core types — narrow freeze is the same
+    // freeze() only speaks 4/8-byte core types -- narrow freeze is the same
     // re-write loop over writeNarrow, self-clearing via a WeakRef like core's.
     const self = new WeakRef(proc);
     const timer = setInterval(() => {
@@ -660,7 +660,7 @@ async function cmdFreeze(ctx: Ctx): Promise<void> {
       try {
         writeNarrow(pr, addr, p.core as NarrowType, value, { dryRun: false });
       } catch {
-        /* closed or unwritable — ignore */
+        /* closed or unwritable -- ignore */
       }
     }, ms);
     timer.unref();
@@ -670,7 +670,7 @@ async function cmdFreeze(ctx: Ctx): Promise<void> {
   if (ctx.flags.json) emitLine({ type: 'freeze', addr: hex(addr), ms });
   else
     console.error(
-      `freezing ${hex(addr)} = ${value} every ${ms}ms — Ctrl-C to stop`,
+      `freezing ${hex(addr)} = ${value} every ${ms}ms -- Ctrl-C to stop`,
     );
   await new Promise<void>((res) => {
     const stop = () => res();
@@ -740,7 +740,7 @@ export const COMMANDS: Record<string, Handler> = {
   entities: cmdEntities,
 };
 
-export const USAGE = `mproc — memoryprocess CLI
+export const USAGE = `mproc -- memoryprocess CLI
 
   mproc list                                  running processes
   mproc modules <pid>                         loaded modules
@@ -751,9 +751,9 @@ export const USAGE = `mproc — memoryprocess CLI
   mproc resume <pid> <tid>                    resume a thread
   mproc read <pid> <addr> [type]              typed read (i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr)
   mproc write <pid> <addr> <type> <value> [--dry]
-  mproc scan <pid> <value> [type] [--module m | --start a --end b] [--out f] [--limit n]   CE-style value scan → .mproc/scan-<pid>.json
+  mproc scan <pid> <value> [type] [--module m | --start a --end b] [--out f] [--limit n]   CE-style value scan -> .mproc/scan-<pid>.json
   mproc next <pid> <file> <mode> [args]          refine: exact V|changed|unchanged|increased|decreased|increasedBy V|decreasedBy V|between LO HI
-  mproc pointers <pid> '<name>:<mod+rva,off,off>'…   resolve named chains
+  mproc pointers <pid> '<name>:<mod+rva,off,off>'...   resolve named chains
   mproc watch <pid> <addr> [type] [ms]        stream value changes (Ctrl-C ends)
   mproc freeze <pid> <addr> <type> <value> [ms]    keep re-writing (Ctrl-C ends); narrows i8|u8|i16|u16 too
   mproc undo <pid> [n]                        revert last n journaled writes
@@ -761,7 +761,7 @@ export const USAGE = `mproc — memoryprocess CLI
   mproc entities <pid> <addr> <stride|next:OFF> [max]
   mproc attach <pid>                          session: hold Process open, one command per stdin line
 
-addr := 0x… | decimal | mod+rva   flags: --json --dry --out f --limit n --ms t --module m --start a --end b --version
+addr := 0x... | decimal | mod+rva   flags: --json --dry --out f --limit n --ms t --module m --start a --end b --version
 `;
 
 /**
@@ -788,7 +788,7 @@ export async function runCommand(
   }
   const handler = COMMANDS[cmdName];
   if (!handler)
-    throw new UsageError(`unknown command '${cmdName}' — try 'mproc help'`);
+    throw new UsageError(`unknown command '${cmdName}' -- try 'mproc help'`);
 
   let pid: number | null = null;
   let rest = pos.slice(1);
@@ -805,7 +805,9 @@ export async function runCommand(
   } else if (PID_COMMANDS.has(cmdName)) {
     const pidArg = rest[0];
     if (!pidArg)
-      throw new UsageError(`missing <pid> — usage: mproc ${cmdName} <pid> …`);
+      throw new UsageError(
+        `missing <pid> -- usage: mproc ${cmdName} <pid> ...`,
+      );
     const n = Number(pidArg);
     if (!Number.isInteger(n) || n <= 0)
       throw new UsageError(`invalid pid '${pidArg}'`);

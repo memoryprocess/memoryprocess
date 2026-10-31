@@ -16,7 +16,7 @@ export async function spawnVictim(): Promise<Victim> {
   const proc = spawn(exe, [], { stdio: ['ignore', 'pipe', 'inherit'] });
   let buf = '';
   await new Promise<void>((res, rej) => {
-    // Newer victims print &g_guard_end last; older binaries end at &g_ptr —
+    // Newer victims print &g_guard_end last; older binaries end at &g_ptr --
     // fall back to a short quiet period so both work.
     let ptrTimer: NodeJS.Timeout | undefined;
     proc.stdout!.on('data', (d) => {

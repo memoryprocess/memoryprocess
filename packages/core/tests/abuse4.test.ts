@@ -1,5 +1,5 @@
 /**
- * abuse4 — adversarial fuzz of the DANGEROUS APIs:
+ * abuse4 -- adversarial fuzz of the DANGEROUS APIs:
  *   injectDll/ejectDll, callRemote/execShellcode, hook/unhook,
  *   hwBreakpoint, suspend*, dead-process, lifecycle, findWhatWrites.
  *
@@ -29,7 +29,7 @@ const BUN = Bun.which('bun') ?? 'bun';
 let victim: Victim;
 let proc: Process;
 
-/** Observed outcomes — transcribed into .opencode/analysis/qa4-fuzz-dangerous.md */
+/** Observed outcomes -- transcribed into .opencode/analysis/qa4-fuzz-dangerous.md */
 const FINDINGS: string[] = [];
 function rec(
   name: string,
@@ -98,40 +98,40 @@ afterAll(() => {
   console.log('\n===== abuse4 findings =====\n' + FINDINGS.join('\n'));
 });
 
-/* ============ 1. self-suspend (C3) — subprocess probes ============ */
+/* ============ 1. self-suspend (C3) -- subprocess probes ============ */
 describe('self-suspend (C3)', () => {
   // FIXED: suspendProcess/suspendAll on own pid now REFUSE with SELF_SUSPEND
   // instead of deadlocking. Assert the refusal, never actually hang.
-  test('suspendProcess() on own pid → SELF_SUSPEND (refused)', () => {
+  test('suspendProcess() on own pid -> SELF_SUSPEND (refused)', () => {
     const r = runSub(
       `import {Process} from ${JSON.stringify(srcIndex)};` +
         `try{const p=Process.open(process.pid);p.suspendProcess();console.log('NO_THROW')}catch(e){console.log('CODE',e.code)}`,
     );
     expect(r.hung).toBe(false);
     expect(r.out).toContain('SELF_SUSPEND');
-    rec('suspendProcess(self)', 'refused with SELF_SUSPEND — C3 fixed', 'ok');
+    rec('suspendProcess(self)', 'refused with SELF_SUSPEND -- C3 fixed', 'ok');
   });
 
-  test('suspendAll() on own pid → SELF_SUSPEND (refused)', () => {
+  test('suspendAll() on own pid -> SELF_SUSPEND (refused)', () => {
     const r = runSub(
       `import {Process} from ${JSON.stringify(srcIndex)};` +
         `try{const p=Process.open(process.pid);p.suspendAll();console.log('NO_THROW')}catch(e){console.log('CODE',e.code)}`,
     );
     expect(r.hung).toBe(false);
     expect(r.out).toContain('SELF_SUSPEND');
-    rec('suspendAll(self)', 'refused with SELF_SUSPEND — C3 fixed', 'ok');
+    rec('suspendAll(self)', 'refused with SELF_SUSPEND -- C3 fixed', 'ok');
   });
 });
 
 /* ============ 2. injectDll paths (M2/M8) ============ */
 describe('injectDll path fuzz', () => {
-  test("relative path 'testdll.dll' — resolves vs TARGET cwd", () => {
+  test("relative path 'testdll.dll' -- resolves vs TARGET cwd", () => {
     const p = probe(() => proc.injectDll('testdll.dll'));
     rec(
       "injectDll('testdll.dll')",
       p.threw
-        ? `threw ${p.err!.name} (target cwd lookup failed) — M2: no absolute-path enforcement`
-        : 'loaded via target search order — M2 planting primitive',
+        ? `threw ${p.err!.name} (target cwd lookup failed) -- M2: no absolute-path enforcement`
+        : 'loaded via target search order -- M2 planting primitive',
       'ok', // either is "acceptable" behavior; the M2 gap is the missing check
     );
     if (!p.threw) {
@@ -143,7 +143,7 @@ describe('injectDll path fuzz', () => {
     expect(p.threw || p.val === true).toBe(true);
   });
 
-  test('nonexistent absolute path → InjectError', () => {
+  test('nonexistent absolute path -> InjectError', () => {
     const p = probe(() => proc.injectDll('C:\\definitely\\missing\\nope.dll'));
     expect(p.threw).toBe(true);
     expect(p.err).toBeInstanceOf(InjectError);
@@ -154,15 +154,15 @@ describe('injectDll path fuzz', () => {
     );
   });
 
-  test('unicode path (non-ASCII filename) — ANSI mangling (M2)', () => {
-    const u = join(tmpdir(), `mp_täst_${process.pid}.dll`);
+  test('unicode path (non-ASCII filename) -- ANSI mangling (M2)', () => {
+    const u = join(tmpdir(), `mp_tast_${process.pid}.dll`);
     copyFileSync(dllPath, u);
     try {
       const p = probe(() => proc.injectDll(u));
       if (!p.threw) {
         rec(
           'injectDll(unicode)',
-          'loaded non-ASCII path — UTF-8→ANSI worked here',
+          'loaded non-ASCII path -- UTF-8->ANSI worked here',
           'ok',
         );
         try {
@@ -171,7 +171,7 @@ describe('injectDll path fuzz', () => {
       } else {
         rec(
           'injectDll(unicode)',
-          `InjectError — LoadLibraryA ANSI mangling (M2 confirmed): ${p.err!.message.slice(0, 40)}`,
+          `InjectError -- LoadLibraryA ANSI mangling (M2 confirmed): ${p.err!.message.slice(0, 40)}`,
           'bad',
         );
       }
@@ -188,18 +188,18 @@ describe('injectDll path fuzz', () => {
     rec('injectDll(300-char)', `threw ${p.err!.name}`, 'ok');
   });
 
-  test('empty string → throws', () => {
+  test('empty string -> throws', () => {
     const p = probe(() => proc.injectDll(''));
     expect(p.threw).toBe(true);
     rec("injectDll('')", `threw ${p.err!.name}`, 'ok');
   });
 
-  test('non-string arg → TypeError', () => {
+  test('non-string arg -> TypeError', () => {
     expect(() => proc.injectDll(42 as any)).toThrow(TypeError);
     rec('injectDll(42)', 'TypeError', 'ok');
   });
 
-  test('double-inject same dll → refcount 2; single eject leaves it loaded (M8)', async () => {
+  test('double-inject same dll -> refcount 2; single eject leaves it loaded (M8)', async () => {
     const base = await injectAndWait(proc);
     expect(base).not.toBeNull();
     expect(proc.injectDll(dllPath)).toBe(true);
@@ -210,7 +210,7 @@ describe('injectDll path fuzz', () => {
     rec(
       'double-inject/eject-once',
       still
-        ? 'still loaded — refcount semantics, no tracking (M8)'
+        ? 'still loaded -- refcount semantics, no tracking (M8)'
         : 'unloaded after one eject',
       still ? 'bad' : 'ok',
     );
@@ -224,7 +224,7 @@ describe('injectDll path fuzz', () => {
 
 /* ============ 3. ejectDll (C4, L1) ============ */
 describe('ejectDll fuzz', () => {
-  test('eject never-injected name → InjectError (module not found)', () => {
+  test('eject never-injected name -> InjectError (module not found)', () => {
     const p = probe(() => proc.ejectDll('notloaded-xyz.dll'));
     expect(p.threw).toBe(true);
     expect(p.err).toBeInstanceOf(InjectError);
@@ -243,7 +243,7 @@ describe('ejectDll fuzz', () => {
     const gone = !proc.module('testdll.dll');
     rec(
       'ejectDll("testd")',
-      `${p.threw ? `threw ${p.err!.name}` : `returned ${p.val}`}, dll ${gone ? 'UNLOADED' : 'still loaded'} — exact basename match enforced`,
+      `${p.threw ? `threw ${p.err!.name}` : `returned ${p.val}`}, dll ${gone ? 'UNLOADED' : 'still loaded'} -- exact basename match enforced`,
       p.threw && !gone ? 'ok' : 'bad',
     );
     expect(p.threw).toBe(true);
@@ -253,36 +253,36 @@ describe('ejectDll fuzz', () => {
     } catch {}
   });
 
-  test('ejectDll("kernel32.dll") → true despite FreeLibrary failing? (C4.1)', () => {
-    // kernel32's refcount never drops to 0 → FreeLibrary returns FALSE →
-    // a correct impl reports failure. C4: no exit-code check → true either way.
+  test('ejectDll("kernel32.dll") -> true despite FreeLibrary failing? (C4.1)', () => {
+    // kernel32's refcount never drops to 0 -> FreeLibrary returns FALSE ->
+    // a correct impl reports failure. C4: no exit-code check -> true either way.
     const p = probe(() => proc.ejectDll('kernel32.dll'));
     rec(
       'ejectDll("kernel32")',
-      `${p.threw ? `threw ${p.err!.name}` : `returned ${p.val}`} — kernel32 cannot unload; ${p.val === true ? 'C4.1 confirmed: no FreeLibrary exit-code check' : 'ok'}`,
+      `${p.threw ? `threw ${p.err!.name}` : `returned ${p.val}`} -- kernel32 cannot unload; ${p.val === true ? 'C4.1 confirmed: no FreeLibrary exit-code check' : 'ok'}`,
       p.val === true ? 'bad' : 'ok',
     );
     // victim must still be alive (FreeLibrary failed, kernel32 still there)
     expect(victimAlive()).toBe(true);
   });
 
-  test('eject twice → second throws InjectError (module gone)', async () => {
+  test('eject twice -> second throws InjectError (module gone)', async () => {
     const base = await injectAndWait(proc);
     expect(base).not.toBeNull();
     expect(proc.ejectDll('testdll.dll')).toBe(true);
     await sleep(80);
     const p2 = probe(() => proc.ejectDll('testdll.dll'));
     expect(p2.threw).toBe(true);
-    rec('ejectDll twice', 'second → InjectError(module not found)', 'ok');
+    rec('ejectDll twice', 'second -> InjectError(module not found)', 'ok');
   });
 
-  test('ejectDll({base:0}) — bogus ModuleInfo base', () => {
+  test('ejectDll({base:0}) -- bogus ModuleInfo base', () => {
     const p = probe(() => proc.ejectDll({ base: 0 } as any));
     rec(
       'ejectDll(base=0)',
       p.threw
         ? `threw ${p.err!.name}`
-        : `returned ${p.val} — FreeLibrary(0) unchecked`,
+        : `returned ${p.val} -- FreeLibrary(0) unchecked`,
       p.val === true ? 'bad' : 'ok',
     );
   });
@@ -290,9 +290,9 @@ describe('ejectDll fuzz', () => {
 
 /* ============ 4. callRemote / execShellcode (H1, M3, M5) ============ */
 describe('callRemote / execShellcode', () => {
-  // callRemote(bad addr) makes the remote thread AV → the whole target dies.
-  // That's inherent to CreateRemoteThread — dedicated victim so the shared one survives.
-  test('callRemote(0) → remote AV kills target (inherent CreateRemoteThread footgun)', async () => {
+  // callRemote(bad addr) makes the remote thread AV -> the whole target dies.
+  // That's inherent to CreateRemoteThread -- dedicated victim so the shared one survives.
+  test('callRemote(0) -> remote AV kills target (inherent CreateRemoteThread footgun)', async () => {
     const v = await spawnVictim();
     try {
       const p = Process.open(v.pid);
@@ -301,14 +301,14 @@ describe('callRemote / execShellcode', () => {
         'callRemote(0)',
         r.threw
           ? `threw ${r.err!.name}`
-          : `returned ${r.val === null ? 'null' : `0x${(r.val as number).toString(16)}`} — remote AV terminates target`,
+          : `returned ${r.val === null ? 'null' : `0x${(r.val as number).toString(16)}`} -- remote AV terminates target`,
         'ok',
       );
-      // target is dead or dying — reads now fail (process gone)
+      // target is dead or dying -- reads now fail (process gone)
       const dead = probe(() => p.readInt32(v.addr.g_i32));
       rec(
         'callRemote(0) aftermath',
-        `reads ${dead.threw ? 'fail' : 'still work'} — remote AV is process-fatal`,
+        `reads ${dead.threw ? 'fail' : 'still work'} -- remote AV is process-fatal`,
         'ok',
       );
       p.close();
@@ -317,14 +317,14 @@ describe('callRemote / execShellcode', () => {
     }
   });
 
-  test('callRemote(unmapped) → null/exit-code, target dies (dedicated victim)', async () => {
+  test('callRemote(unmapped) -> null/exit-code, target dies (dedicated victim)', async () => {
     const v = await spawnVictim();
     try {
       const p = Process.open(v.pid);
       const r = probe(() => p.callRemote(0xdead0000n, 0, 3000));
       rec(
         'callRemote(unmapped)',
-        r.threw ? `threw` : `→ ${r.val} (remote AV)`,
+        r.threw ? `threw` : `-> ${r.val} (remote AV)`,
         'ok',
       );
       p.close();
@@ -333,41 +333,41 @@ describe('callRemote / execShellcode', () => {
     }
   });
 
-  test('callRemote timeout=0 → null, thread terminated', async () => {
+  test('callRemote timeout=0 -> null, thread terminated', async () => {
     const v = await spawnVictim();
     try {
       const p = Process.open(v.pid);
       const r = probe(() => p.callRemote(0n, 0, 0));
       expect(r.val === null || r.threw).toBe(true);
-      rec('callRemote(…,0)', `→ ${r.threw ? r.err!.name : r.val}`, 'ok');
+      rec('callRemote(...,0)', `-> ${r.threw ? r.err!.name : r.val}`, 'ok');
       p.close();
     } finally {
       v.kill();
     }
   });
 
-  test('H1: callRemote timeout=-1 → TypeError (H1 FIXED)', () => {
+  test('H1: callRemote timeout=-1 -> TypeError (H1 FIXED)', () => {
     const p = probe(() => proc.callRemote(0n, 0, -1));
     expect(p.threw).toBe(true);
     expect(p.err).toBeInstanceOf(TypeError);
     rec(
       'callRemote timeout=-1',
-      `TypeError — negative timeout rejected (H1 fixed): ${p.err!.message.slice(0, 40)}`,
+      `TypeError -- negative timeout rejected (H1 fixed): ${p.err!.message.slice(0, 40)}`,
       'ok',
     );
   });
 
-  test('execShellcode(empty) → error (M5)', () => {
+  test('execShellcode(empty) -> error (M5)', () => {
     const p = probe(() => proc.execShellcode(Buffer.alloc(0)));
     rec(
       'execShellcode(empty)',
-      p.threw ? `threw ${p.err!.name}` : `→ ${p.val}`,
+      p.threw ? `threw ${p.err!.name}` : `-> ${p.val}`,
       'ok',
     );
     expect(p.threw || p.val === null).toBe(true);
   });
 
-  test('execShellcode(valid ret-imm) on dedicated victim — baseline still fine', async () => {
+  test('execShellcode(valid ret-imm) on dedicated victim -- baseline still fine', async () => {
     const v2 = await spawnVictim();
     try {
       const p2 = Process.open(v2.pid);
@@ -383,7 +383,7 @@ describe('callRemote / execShellcode', () => {
 
 /* ============ 5. hook abuse (C2, H2, H3, M4) ============ */
 describe('hook abuse (dedicated victim)', () => {
-  test('hook mid-instruction (f+1) → silent success, bogus trampoline (M4/C2)', async () => {
+  test('hook mid-instruction (f+1) -> silent success, bogus trampoline (M4/C2)', async () => {
     const v2 = await spawnVictim();
     try {
       const p2 = Process.open(v2.pid);
@@ -396,13 +396,13 @@ describe('hook abuse (dedicated victim)', () => {
       if (h.threw) {
         rec('hook(f+1)', `threw ${h.err!.name}`, 'ok');
       } else {
-        // disassembly at f+1 differs from f → stolen bytes are garbage
+        // disassembly at f+1 differs from f -> stolen bytes are garbage
         const bogus =
           disMid[0]?.size !== disF[0]?.size ||
           disMid[0]?.bytes[0] !== disF[0]?.bytes[0];
         rec(
           'hook(f+1 mid-instruction)',
-          `succeeded silently; disasm diverges=${bogus} — M4 confirmed`,
+          `succeeded silently; disasm diverges=${bogus} -- M4 confirmed`,
           'bad',
         );
         const u = probe(() => p2.unhook(h.val!));
@@ -414,7 +414,7 @@ describe('hook abuse (dedicated victim)', () => {
     }
   });
 
-  test('hook <5B function (ret-only) → succeeds, callRemote likely crashes victim', async () => {
+  test('hook <5B function (ret-only) -> succeeds, callRemote likely crashes victim', async () => {
     const v2 = await spawnVictim();
     try {
       const p2 = Process.open(v2.pid);
@@ -423,14 +423,14 @@ describe('hook abuse (dedicated victim)', () => {
       p2.writeBuffer(f, Buffer.from([0xc3]));
       const h = probe(() => p2.hook(f, f + 0x80n));
       if (h.threw) {
-        rec('hook(1-byte fn)', `threw ${h.err!.name} — refused`, 'ok');
+        rec('hook(1-byte fn)', `threw ${h.err!.name} -- refused`, 'ok');
       } else {
-        // stolen ≥5 bytes → disasm decoded PAST the ret into following bytes
+        // stolen >=5 bytes -> disasm decoded PAST the ret into following bytes
         const r = probe(() => p2.callRemote(f, 0, 2000));
         const alive = probe(() => p2.readInt32(v2.addr.g_i32));
         rec(
           'hook(<5B fn)+call',
-          `hook ok (stole past ret); callRemote→${r.threw ? r.err!.name : r.val}; victim ${alive.threw ? 'DEAD — wild jump' : 'alive'}`,
+          `hook ok (stole past ret); callRemote->${r.threw ? r.err!.name : r.val}; victim ${alive.threw ? 'DEAD -- wild jump' : 'alive'}`,
           alive.threw ? 'critical' : 'bad',
         );
       }
@@ -440,7 +440,7 @@ describe('hook abuse (dedicated victim)', () => {
     }
   });
 
-  test('double-hook same src → second hook steals our E9 → wild jump (C2)', async () => {
+  test('double-hook same src -> second hook steals our E9 -> wild jump (C2)', async () => {
     const v2 = await spawnVictim();
     try {
       const p2 = Process.open(v2.pid);
@@ -453,7 +453,7 @@ describe('hook abuse (dedicated victim)', () => {
       if (h1.threw || h2.threw) {
         rec(
           'double-hook',
-          `threw (${h1.err?.name ?? ''}/${h2.err?.name ?? ''}) — refused`,
+          `threw (${h1.err?.name ?? ''}/${h2.err?.name ?? ''}) -- refused`,
           'ok',
         );
       } else {
@@ -461,7 +461,7 @@ describe('hook abuse (dedicated victim)', () => {
         const alive = probe(() => p2.readInt32(v2.addr.g_i32));
         rec(
           'double-hook same src',
-          `both succeeded; callRemote→${r.threw ? r.err!.name : r.val}; victim ${alive.threw ? 'DEAD — C2 confirmed wild jump' : 'alive'}`,
+          `both succeeded; callRemote->${r.threw ? r.err!.name : r.val}; victim ${alive.threw ? 'DEAD -- C2 confirmed wild jump' : 'alive'}`,
           alive.threw ? 'critical' : 'bad',
         );
       }
@@ -471,12 +471,12 @@ describe('hook abuse (dedicated victim)', () => {
     }
   });
 
-  test('hook with stolen rel32 (C2): call-rel32 fn → RELOCATED, hook succeeds', async () => {
+  test('hook with stolen rel32 (C2): call-rel32 fn -> RELOCATED, hook succeeds', async () => {
     const v2 = await spawnVictim();
     try {
       const p2 = Process.open(v2.pid);
       const base = await injectAndWait(p2);
-      // src = E8 <rel32 to a ret INSIDE the same page>; C3 — since v2 hookSteal
+      // src = E8 <rel32 to a ret INSIDE the same page>; C3 -- since v2 hookSteal
       // RELOCATES rel32, this now succeeds and the relocated call in the stub
       // still reaches the original target.
       const src = p2.alloc(0x100, Protection.PAGE_EXECUTE_READWRITE);
@@ -489,12 +489,12 @@ describe('hook abuse (dedicated victim)', () => {
       expect(h.threw).toBe(false);
       rec(
         'hook(stolen E8 rel32)',
-        `succeeded — rel32 relocated to stub (C2 UPGRADED)`,
+        `succeeded -- rel32 relocated to stub (C2 UPGRADED)`,
         'ok',
       );
       // Clean up the live hook we just installed.
       p2.unhook(h.val!);
-      // victim still alive — no wild jump happened
+      // victim still alive -- no wild jump happened
       expect(typeof p2.readInt32(v2.addr.g_i32)).toBe('number');
       p2.close();
     } finally {
@@ -502,11 +502,11 @@ describe('hook abuse (dedicated victim)', () => {
     }
   });
 
-  test('unhook twice — second is write+free on freed stub', async () => {
+  test('unhook twice -- second is write+free on freed stub', async () => {
     const v2 = await spawnVictim();
     try {
       const p2 = Process.open(v2.pid);
-      // f and dst both in one allocated page → guaranteed rel32 range.
+      // f and dst both in one allocated page -> guaranteed rel32 range.
       const page = p2.alloc(0x100, Protection.PAGE_EXECUTE_READWRITE);
       const f = page; // target: mov eax,42; ret
       const dst = page + 0x40n; // hook: ret
@@ -517,7 +517,7 @@ describe('hook abuse (dedicated victim)', () => {
       const p = probe(() => p2.unhook(h));
       rec(
         'unhook twice',
-        `second → ${p.threw ? p.err!.name : p.val} (writes already-restored bytes, frees freed stub)`,
+        `second -> ${p.threw ? p.err!.name : p.val} (writes already-restored bytes, frees freed stub)`,
         'ok',
       );
       p2.close();
@@ -529,7 +529,7 @@ describe('hook abuse (dedicated victim)', () => {
 
 /* ============ 6. hwBreakpoint (H6) ============ */
 describe('hwBreakpoint fuzz', () => {
-  test('5th breakpoint → slot RangeError (only 4 exist)', () => {
+  test('5th breakpoint -> slot RangeError (only 4 exist)', () => {
     const tid = proc.threads()[0]!;
     expect(() => proc.hwBreakpoint(tid, victim.addr.g_i32, 4 as any)).toThrow(
       RangeError,
@@ -537,7 +537,7 @@ describe('hwBreakpoint fuzz', () => {
     rec('hwBreakpoint slot 4', 'RangeError', 'ok');
   });
 
-  test('invalid kind → TypeError', () => {
+  test('invalid kind -> TypeError', () => {
     const tid = proc.threads()[0]!;
     expect(() =>
       proc.hwBreakpoint(tid, victim.addr.g_i32, 0, 1, 'bogus' as any),
@@ -545,7 +545,7 @@ describe('hwBreakpoint fuzz', () => {
     rec("hwBreakpoint kind='bogus'", 'TypeError', 'ok');
   });
 
-  test('clear never-set slot → true (idempotent)', () => {
+  test('clear never-set slot -> true (idempotent)', () => {
     const tid = proc.threads()[0]!;
     try {
       proc.suspendAll();
@@ -556,12 +556,12 @@ describe('hwBreakpoint fuzz', () => {
     }
   });
 
-  test('arm WITHOUT suspending → succeeds (H6: no enforcement)', () => {
+  test('arm WITHOUT suspending -> succeeds (H6: no enforcement)', () => {
     const tid = proc.threads()[0]!;
     const p = probe(() => proc.hwBreakpoint(tid, 0n, 1)); // dr1=0, harmless addr
     rec(
       'hwBreakpoint on running thread',
-      `${p.threw ? `threw ${p.err!.name}` : `returned ${p.val}`} — no suspend enforcement (H6)`,
+      `${p.threw ? `threw ${p.err!.name}` : `returned ${p.val}`} -- no suspend enforcement (H6)`,
       p.val === true ? 'bad' : 'ok',
     );
     try {
@@ -592,7 +592,7 @@ describe('dead-process errors', () => {
       const p = probe(fn);
       rec(
         `dead-proc ${n}`,
-        p.threw ? `threw ${p.err!.name}` : `→ ${p.val}`,
+        p.threw ? `threw ${p.err!.name}` : `-> ${p.val}`,
         'ok',
       );
       expect(p.threw || p.val === null || p.val === false).toBe(true);
@@ -602,7 +602,7 @@ describe('dead-process errors', () => {
     );
     rec(
       'dead-proc scan',
-      s.threw ? `threw` : `→ ${JSON.stringify(s.val)}`,
+      s.threw ? `threw` : `-> ${JSON.stringify(s.val)}`,
       'ok',
     );
     p3.close();
@@ -611,18 +611,18 @@ describe('dead-process errors', () => {
 
 /* ============ 8. lifecycle ============ */
 describe('lifecycle churn', () => {
-  test('200× watch/unwatch churn → no leaked timers', async () => {
+  test('200x watch/unwatch churn -> no leaked timers', async () => {
     const t0 = Date.now();
     for (let i = 0; i < 200; i++) {
       const un = proc.watch(victim.addr.g_counter, () => {}, 5);
       un();
     }
     await sleep(60);
-    rec('200× watch/unwatch', `${Date.now() - t0}ms, no hang`, 'ok');
+    rec('200x watch/unwatch', `${Date.now() - t0}ms, no hang`, 'ok');
     expect(victimAlive()).toBe(true);
   });
 
-  test('two Process objects on same pid — concurrent bounded scans', async () => {
+  test('two Process objects on same pid -- concurrent bounded scans', async () => {
     const p2 = Process.open(victim.pid);
     try {
       const start = Number(victim.addr.g_bigbuf);
@@ -641,13 +641,13 @@ describe('lifecycle churn', () => {
   test.each([
     ['open(0)', 0],
     ['open(-1)', -1],
-  ])('%s → throws', (_l, pid) => {
+  ])('%s -> throws', (_l, pid) => {
     const p = probe(() => Process.open(pid));
     expect(p.threw).toBe(true);
     rec(`Process.open(${pid})`, `threw ${p.err!.name}`, 'ok');
   });
 
-  test('open(own pid) → allowed (documented M8-adjacent)', () => {
+  test('open(own pid) -> allowed (documented M8-adjacent)', () => {
     const p = Process.open(process.pid);
     expect(p.pid).toBe(process.pid);
     p.close();
@@ -657,7 +657,7 @@ describe('lifecycle churn', () => {
 
 /* ============ 9. findWhatWrites detach (H7) ============ */
 describe('findWhatWrites', () => {
-  test('runs and detaches — victim counter keeps incrementing', async () => {
+  test('runs and detaches -- victim counter keeps incrementing', async () => {
     Process.enableDebugPrivilege();
     const before = proc.readInt32(victim.addr.g_counter);
     const r = await probeAsync(() =>
@@ -681,7 +681,7 @@ describe('findWhatWrites', () => {
     const runs = after > mid;
     rec(
       'findWhatWrites detach',
-      `hits=${(r.val as any[]).length}, counter ${mid}→${after} ${runs ? 'still running — clean detach' : 'FROZEN — debuggee left suspended (H7.2)'}`,
+      `hits=${(r.val as any[]).length}, counter ${mid}->${after} ${runs ? 'still running -- clean detach' : 'FROZEN -- debuggee left suspended (H7.2)'}`,
       runs ? 'ok' : 'critical',
     );
     expect(runs).toBe(true);

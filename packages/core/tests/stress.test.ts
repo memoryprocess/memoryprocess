@@ -120,7 +120,7 @@ describe('torture / break attempts', () => {
   test('write to read-only region fails or throws', () => {
     using proc = Process.open(victim.pid);
     const mod = proc.module('victim.exe')!;
-    // PE header is read-only — writing should fail
+    // PE header is read-only -- writing should fail
     let threw = false;
     try {
       proc.writeInt32(mod.base, 0x1234);

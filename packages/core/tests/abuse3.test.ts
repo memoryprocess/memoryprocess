@@ -1,10 +1,10 @@
 /**
- * abuse3 â€” adversarial fuzz of the HIGH-LEVEL API (structs.ts):
+ * abuse3 -- adversarial fuzz of the HIGH-LEVEL API (structs.ts):
  *   proc.addr / pointers / entity / entityList / readMany /
  *   findPointersTo / offsets (+ Address/Offsets/Entity/EntityList classes).
  *
  * Rules: every malformed input must either work correctly or throw a
- * clean error â€” never crash, hang, or return silent garbage.
+ * clean error -- never crash, hang, or return silent garbage.
  * Findings are logged to `FINDINGS` and printed at the end; tests assert
  * only "does not throw" / "is an Error" where behavior is unambiguous.
  */
@@ -16,7 +16,7 @@ let victim: Victim;
 let proc: Process;
 let mod: { base: number; size: number };
 
-/** Observed outcomes â€” transcribed into .opencode/analysis/qa-fuzz3.md */
+/** Observed outcomes -- transcribed into .opencode/analysis/qa-fuzz3.md */
 const FINDINGS: string[] = [];
 
 function rec(
@@ -36,7 +36,7 @@ function probe<T>(fn: () => T): { threw: boolean; err?: Error; val?: T } {
   }
 }
 
-/** Async variant â€” the fn returns a promise; awaits it. */
+/** Async variant -- the fn returns a promise; awaits it. */
 async function probeAsync<T>(
   fn: () => Promise<T> | T,
 ): Promise<{ threw: boolean; err?: Error; val?: T }> {
@@ -63,7 +63,7 @@ afterAll(() => {
   console.log('\n===== abuse3 findings =====\n' + FINDINGS.join('\n'));
 });
 
-/* ---------------- proc.addr â€” expression fuzz ---------------- */
+/* ---------------- proc.addr -- expression fuzz ---------------- */
 
 describe('proc.addr expression fuzz', () => {
   const rvaHex = () => `0x${rva(victim.addr.g_i32).toString(16)}`;
@@ -84,11 +84,7 @@ describe('proc.addr expression fuzz', () => {
   ])('addr(%s) throws', (_n, expr, shouldThrow) => {
     const p = probe(() => proc.addr(expr));
     if (shouldThrow && !p.threw)
-      rec(
-        `addr('${expr}')`,
-        `no throw â†’ base=${proc.addr(expr).base}`,
-        'bad',
-      );
+      rec(`addr('${expr}')`, `no throw -> base=${proc.addr(expr).base}`, 'bad');
     else
       rec(
         `addr('${expr}')`,
@@ -98,7 +94,7 @@ describe('proc.addr expression fuzz', () => {
     expect(p.threw).toBe(true);
   });
 
-  test("addr('victim.exe + 0x10') â€” spaces around '+' (lenient)", () => {
+  test("addr('victim.exe + 0x10') -- spaces around '+' (lenient)", () => {
     const p = probe(() => proc.addr('victim.exe + 0x10'));
     if (p.threw)
       rec(
@@ -109,25 +105,25 @@ describe('proc.addr expression fuzz', () => {
     else
       rec(
         "addr('victim.exe + 0x10')",
-        `accepted â†’ base=0x${p.val!.base.toString(16)} (lenient)`,
+        `accepted -> base=0x${p.val!.base.toString(16)} (lenient)`,
         'ok',
       );
     // Either is acceptable; just must not crash.
   });
 
-  test("addr('VICTIM.EXE+rva') â€” case-insensitive module", () => {
+  test("addr('VICTIM.EXE+rva') -- case-insensitive module", () => {
     const a = proc.addr(`VICTIM.EXE+${rvaHex()}`);
     expect(a.resolve()).toBe(victim.addr.g_i32);
     rec("addr('VICTIM.EXE+...')", 'resolved (case-insensitive)', 'ok');
   });
 
-  test("addr('0x10') â€” bare hex string base", () => {
+  test("addr('0x10') -- bare hex string base", () => {
     const a = proc.addr('0x10');
     expect(a.base).toBe(0x10n);
     rec("addr('0x10')", 'base=0x10 accepted', 'ok');
   });
 
-  test("addr('victim.exe+0xFFFFFFFFFFFFFFFF') â€” huge rva", () => {
+  test("addr('victim.exe+0xFFFFFFFFFFFFFFFF') -- huge rva", () => {
     const a = proc.addr('victim.exe+0xFFFFFFFFFFFFFFFF');
     const q = probe(() => a.resolve());
     const rd = probe(() => a.readInt32());
@@ -149,7 +145,7 @@ describe('proc.addr expression fuzz', () => {
     if (!p.threw) {
       rec(
         `chain ${label}`,
-        `resolved â†’ 0x${(p.val as bigint).toString(16)}`,
+        `resolved -> 0x${(p.val as bigint).toString(16)}`,
         'ok',
       );
     } else {
@@ -164,9 +160,9 @@ describe('proc.addr expression fuzz', () => {
     else expect(p.threw).toBe(true);
   });
 
-  test('chain 2^53 â€” last offset is added, not dereffed (documented)', () => {
-    // With a single chain element there is NO deref â€” resolve() returns
-    // base-deref + offset. Huge offset â†’ huge non-canonical address; reading
+  test('chain 2^53 -- last offset is added, not dereffed (documented)', () => {
+    // With a single chain element there is NO deref -- resolve() returns
+    // base-deref + offset. Huge offset -> huge non-canonical address; reading
     // it fails with ReadError. Not silent garbage: the error surfaces on use.
     const a = proc.addr(victim.addr.g_ppp, 2 ** 53);
     const resolved = a.resolve();
@@ -174,10 +170,10 @@ describe('proc.addr expression fuzz', () => {
       proc.readPointer(victim.addr.g_ppp) + BigInt(2 ** 53),
     );
     expect(() => a.readInt32()).toThrow();
-    rec('chain 2^53', 'huge addr computed, read â†’ ReadError', 'ok');
+    rec('chain 2^53', 'huge addr computed, read -> ReadError', 'ok');
   });
 
-  test('chain[0]=-1 (negative last offset) â€” legal, added to deref', () => {
+  test('chain[0]=-1 (negative last offset) -- legal, added to deref', () => {
     // Documented semantics: last offset is ADDED after derefs (CE allows
     // negative offsets). resolve() must not throw; it returns ptr-1.
     const a = proc.addr(victim.addr.g_ppp, -1);
@@ -186,7 +182,7 @@ describe('proc.addr expression fuzz', () => {
   });
 
   test("heuristic FP: 'mod+0x100' + chain[0]=256 decimal (same value)", () => {
-    // rva=0x100 in string, chain[0]=256 â†’ ambiguous by design
+    // rva=0x100 in string, chain[0]=256 -> ambiguous by design
     const p = probe(() => proc.addr('victim.exe+0x100', 256));
     rec(
       "'mod+0x100'+chain 256",
@@ -198,16 +194,16 @@ describe('proc.addr expression fuzz', () => {
   });
 
   test("heuristic FN: 'mod+0x10' + chain[0]=0x10 but legit deref intent", () => {
-    // This is the documented ambiguity â€” it throws (by design); confirm code.
+    // This is the documented ambiguity -- it throws (by design); confirm code.
     const p = probe(() => proc.addr('victim.exe+0x10', 0x10));
     expect(p.threw).toBe(true);
     expect((p.err as any).code).toBe('AMBIGUOUS_ADDRESS_EXPR');
   });
 
-  test('addr on closed proc â€” numeric base lazy, module base eager', () => {
+  test('addr on closed proc -- numeric base lazy, module base eager', () => {
     const dead = Process.open(victim.pid);
-    const aNum = probe(() => dead.addr(victim.addr.g_i32)); // lazy â€” no read yet
-    const aMod = probe(() => dead.addr('victim.exe+0x10')); // module() â†’ assertOpen? actually module() asserts
+    const aNum = probe(() => dead.addr(victim.addr.g_i32)); // lazy -- no read yet
+    const aMod = probe(() => dead.addr('victim.exe+0x10')); // module() -> assertOpen? actually module() asserts
     dead.close();
     // after close: resolve/read must throw
     const late = probe(() => dead.addr(victim.addr.g_i32).readInt32());
@@ -219,9 +215,9 @@ describe('proc.addr expression fuzz', () => {
     expect(late.threw).toBe(true);
   });
 
-  test('Address on unmapped base â€” resolve ok, read throws', () => {
+  test('Address on unmapped base -- resolve ok, read throws', () => {
     const a = proc.addr(0xdead0000n);
-    expect(a.resolve()).toBe(0xdead0000n); // no chain â†’ no read
+    expect(a.resolve()).toBe(0xdead0000n); // no chain -> no read
     expect(() => a.readInt32()).toThrow();
     rec('unmapped base read', 'ReadError', 'ok');
   });
@@ -230,13 +226,13 @@ describe('proc.addr expression fuzz', () => {
 /* ---------------- proc.pointers ---------------- */
 
 describe('proc.pointers fuzz', () => {
-  test('empty {} â†’ empty map', () => {
+  test('empty {} -> empty map', () => {
     const p = proc.pointers({});
     expect(Object.keys(p).length).toBe(0);
     rec('pointers({})', 'empty map', 'ok');
   });
 
-  test('def [] (empty array) â€” clean TypeError naming the def', () => {
+  test('def [] (empty array) -- clean TypeError naming the def', () => {
     const p = probe(() => proc.pointers({ a: [] as any }));
     rec(
       'pointers({a:[]})',
@@ -264,7 +260,7 @@ describe('proc.pointers fuzz', () => {
     expect(p.threw).toBe(true);
   });
 
-  test("string def 'victim.exe+0x10' â€” TypeError (FIXED: no char iteration)", () => {
+  test("string def 'victim.exe+0x10' -- TypeError (FIXED: no char iteration)", () => {
     const p = probe(() => proc.pointers({ a: 'victim.exe+0x10' as any }));
     rec(
       'pointers string def',
@@ -275,8 +271,8 @@ describe('proc.pointers fuzz', () => {
     expect(p.err).toBeInstanceOf(TypeError);
   });
 
-  test('extra array elements â€” every element is a deref hop (documented)', () => {
-    // [g_ppp, 0,0,0] â†’ g_i32. A 4th 0 derefs *g_i32's value* as a pointer â€”
+  test('extra array elements -- every element is a deref hop (documented)', () => {
+    // [g_ppp, 0,0,0] -> g_i32. A 4th 0 derefs *g_i32's value* as a pointer --
     // garbage result but deterministic semantics, not a crash.
     const a = proc.pointers({ x: [victim.addr.g_ppp, 0, 0, 0, 0] });
     const four = probe(() => a.x.resolve());
@@ -286,12 +282,12 @@ describe('proc.pointers fuzz', () => {
       'extra chain elems',
       four.threw
         ? `threw ${four.err!.name}`
-        : `extra hop dereffed â†’ 0x${(four.val as bigint).toString(16)}`,
+        : `extra hop dereffed -> 0x${(four.val as bigint).toString(16)}`,
       'ok',
     );
   });
 
-  test('duplicate names â€” last wins silently', () => {
+  test('duplicate names -- last wins silently', () => {
     const p = proc.pointers({
       a: [victim.addr.g_i32],
       a: [victim.addr.g_u32],
@@ -320,7 +316,7 @@ describe('Offsets fuzz', () => {
     );
   });
 
-  test('ready() called twice â€” idempotent', async () => {
+  test('ready() called twice -- idempotent', async () => {
     const off = proc.offsets({
       'victim.exe': { g_i32: rva(victim.addr.g_i32) },
     });
@@ -329,7 +325,7 @@ describe('Offsets fuzz', () => {
     rec('ready() twice', 'idempotent', 'ok');
   });
 
-  test('ready() before bind â€” unbound Offsets', async () => {
+  test('ready() before bind -- unbound Offsets', async () => {
     const off = Offsets.load({ 'victim.exe': { x: 0x10 } });
     const p = await probeAsync(() => off.ready());
     // FIXED: ready() now throws instead of silently latching resolved=true
@@ -340,13 +336,13 @@ describe('Offsets fuzz', () => {
     );
     expect(p.threw).toBe(true);
     expect(p.err!.message).toContain('not bound');
-    // resolved must NOT be latched â€” bind + ready still works
+    // resolved must NOT be latched -- bind + ready still works
     off.bind(proc);
     await off.ready();
     expect((off as any).x).toBeDefined();
   });
 
-  test('ready() reserved-name collision â€” typed error, no clobber', async () => {
+  test('ready() reserved-name collision -- typed error, no clobber', async () => {
     const off = proc.offsets({
       signatures: { resolve: { rva: 0x10, module: 'victim.exe' } },
     });
@@ -361,7 +357,7 @@ describe('Offsets fuzz', () => {
     expect(typeof off.resolve).toBe('function');
   });
 
-  test('Offsets.load string classifier â€” typed errors, not raw TypeError', () => {
+  test('Offsets.load string classifier -- typed errors, not raw TypeError', () => {
     for (const [label, json] of [
       ['minus form', { x: 'mod-0x10' }],
       ['double plus', { x: 'a+0x1+0x2' }],
@@ -410,13 +406,13 @@ describe('Offsets fuzz', () => {
     rec('bind() clears stale props', 'ok', 'ok');
   });
 
-  test('resolve() without bind â€” throws', async () => {
+  test('resolve() without bind -- throws', async () => {
     const off = Offsets.load({ 'victim.exe': { x: 0x10 } });
     await expect(off.resolve('x')).rejects.toThrow('not bound');
     rec('resolve unbound', 'threw not-bound', 'ok');
   });
 
-  test('Offsets.resolve â€” name not in db', async () => {
+  test('Offsets.resolve -- name not in db', async () => {
     const off = proc.offsets({ 'victim.exe': { x: 0x10 } });
     const p = await probeAsync(() => off.resolve('nosuch'));
     rec(
@@ -428,7 +424,7 @@ describe('Offsets fuzz', () => {
     expect((p.err as any).code).toBe('UNKNOWN_OFFSET');
   });
 
-  test('entry with BOTH pattern AND rva â€” pattern wins', async () => {
+  test('entry with BOTH pattern AND rva -- pattern wins', async () => {
     const off = proc.offsets({
       signatures: {
         both: {
@@ -443,7 +439,7 @@ describe('Offsets fuzz', () => {
     rec('pattern+rva entry', 'pattern wins', 'ok');
   });
 
-  test('entry with NEITHER pattern nor rva â€” throws INVALID_OFFSET_ENTRY', async () => {
+  test('entry with NEITHER pattern nor rva -- throws INVALID_OFFSET_ENTRY', async () => {
     const off = proc.offsets({
       signatures: { bad: { module: 'victim.exe' } as any },
     });
@@ -457,7 +453,7 @@ describe('Offsets fuzz', () => {
     expect((p.err as any).code).toBe('INVALID_OFFSET_ENTRY');
   });
 
-  test('entry with rva but module missing â€” throws', async () => {
+  test('entry with rva but module missing -- throws', async () => {
     const off = proc.offsets({
       signatures: { x: { module: 'nosuch.dll', rva: 0x10 } },
     });
@@ -470,7 +466,7 @@ describe('Offsets fuzz', () => {
     expect(p.threw).toBe(true);
   });
 
-  test('pattern matching nothing â€” PATTERN_NOT_FOUND', async () => {
+  test('pattern matching nothing -- PATTERN_NOT_FOUND', async () => {
     const off = proc.offsets({
       signatures: {
         nope: {
@@ -483,7 +479,7 @@ describe('Offsets fuzz', () => {
     rec('pattern no match', 'PATTERN_NOT_FOUND', 'ok');
   });
 
-  test('pattern matching too much â€” PATTERN_NOT_UNIQUE', async () => {
+  test('pattern matching too much -- PATTERN_NOT_UNIQUE', async () => {
     const off = proc.offsets({
       signatures: { many: { module: 'victim.exe', pattern: 'DE AD' } },
     });
@@ -503,9 +499,9 @@ describe('Offsets fuzz', () => {
 describe('Entity schema fuzz', () => {
   const base = () => victim.addr.g_entity;
 
-  test('negative field offset â€” size=0, snapshot reads 0 bytes, decode OOB', () => {
-    // offset=-4, w=4 â†’ size stays 0 â†’ readBuffer(addr, 0) â†’ empty buf â†’
-    // decodeField(buf, -4) â†’ RangeError (negative offset into empty buffer).
+  test('negative field offset -- size=0, snapshot reads 0 bytes, decode OOB', () => {
+    // offset=-4, w=4 -> size stays 0 -> readBuffer(addr, 0) -> empty buf ->
+    // decodeField(buf, -4) -> RangeError (negative offset into empty buffer).
     const p = probe(() => proc.entity(base(), { x: [-4, 'int32'] }).snapshot());
     rec(
       'entity neg offset',
@@ -515,7 +511,7 @@ describe('Entity schema fuzz', () => {
     expect(p.threw).toBe(true);
   });
 
-  test('huge offset 0x7FFFFF â€” readBuffer cap? ReadError?', () => {
+  test('huge offset 0x7FFFFF -- readBuffer cap? ReadError?', () => {
     const p = probe(() =>
       proc.entity(base(), { x: [0x7fffff, 'int32'] }).snapshot(),
     );
@@ -524,10 +520,10 @@ describe('Entity schema fuzz', () => {
       p.threw ? `threw ${p.err!.name}` : 'decoded',
       p.threw ? 'ok' : 'bad',
     );
-    expect(p.threw).toBe(true); // readBuffer(sizeâ‰ˆ8MB+4) â€” within 512MB cap â†’ RPM fails â†’ ReadError
+    expect(p.threw).toBe(true); // readBuffer(size~=8MB+4) -- within 512MB cap -> RPM fails -> ReadError
   });
 
-  test('overlapping fields â€” allowed (documented?)', () => {
+  test('overlapping fields -- allowed (documented?)', () => {
     const e = proc.entity(victim.addr.g_i32, {
       lo: [0, 'int32'],
       same: [0, 'uint32'],
@@ -537,7 +533,7 @@ describe('Entity schema fuzz', () => {
     rec('overlapping fields', 'decoded same bytes', 'ok');
   });
 
-  test('unknown FieldType string â†’ TypeError at schema compile', () => {
+  test('unknown FieldType string -> TypeError at schema compile', () => {
     const p = probe(() => proc.entity(base(), { x: [0, 'wat' as any] }));
     rec(
       'unknown field type',
@@ -547,7 +543,7 @@ describe('Entity schema fuzz', () => {
     expect(p.threw).toBe(true);
   });
 
-  test('empty schema {} â€” size=0 readBuffer(0)', () => {
+  test('empty schema {} -- size=0 readBuffer(0)', () => {
     const p = probe(() => proc.entity(base(), {}).snapshot());
     rec(
       'empty schema',
@@ -558,20 +554,20 @@ describe('Entity schema fuzz', () => {
     );
   });
 
-  test('snapshot on unmapped addr â€” ReadError', () => {
+  test('snapshot on unmapped addr -- ReadError', () => {
     const e = proc.entity(0xdead0000n, { x: [0, 'int32'] });
     expect(() => e.snapshot()).toThrow();
     rec('unmapped snapshot', 'ReadError', 'ok');
   });
 
-  test("ref field â€” 'ref' decodes a pointer-width value (FIXED)", () => {
+  test("ref field -- 'ref' decodes a pointer-width value (FIXED)", () => {
     const e = proc.entity(victim.addr.g_ptr, { p: [0, 'ref'] });
     const s = e.snapshot() as any;
     rec("'ref' field type", `p=0x${s.p.toString(16)}`, 'ok');
     expect(s.p).toBe(victim.addr.g_i32);
   });
 
-  test('string:NaN â†’ TypeError at schema compile (FIXED)', () => {
+  test('string:NaN -> TypeError at schema compile (FIXED)', () => {
     const p = probe(() =>
       proc.entity(base(), { s: [0, ('string:' + 'x') as any] }),
     );
@@ -584,7 +580,7 @@ describe('Entity schema fuzz', () => {
     expect(p.err).toBeInstanceOf(TypeError);
   });
 
-  test('string:0 â†’ TypeError at schema compile (FIXED)', () => {
+  test('string:0 -> TypeError at schema compile (FIXED)', () => {
     const p = probe(() => proc.entity(base(), { s: [0, 'string:0' as any] }));
     rec(
       'string:0',
@@ -603,7 +599,7 @@ describe('EntityList fuzz', () => {
     ['stride=0', { first: 0n, stride: 0, max: 5 }],
     ['stride=-4', { first: 0n, stride: -4, max: 3 }],
     ['stride=NaN', { first: 0n, stride: 2.5, max: 3 }],
-  ])('%s â†’ TypeError (FIXED)', (_l, opts) => {
+  ])('%s -> TypeError (FIXED)', (_l, opts) => {
     const p = probe(() => proc.entityList(opts as any));
     rec(
       `EntityList ${_l}`,
@@ -614,18 +610,18 @@ describe('EntityList fuzz', () => {
     expect(p.err).toBeInstanceOf(TypeError);
   });
 
-  test('next=self cycle â€” max cap stops infinite loop', () => {
+  test('next=self cycle -- max cap stops infinite loop', () => {
     // g_ptr points to g_i32. Write g_ptr's own addr into g_i32's low bytes?
-    // Simpler: craft node where *node == node â†’ self-loop.
-    // g_pppâ†’g_ppâ†’g_ptrâ†’g_i32. If we make readPointer(X)==X, list loops.
-    // Use g_pp slot: write &g_pp into *(&g_pp) â†’ self.
+    // Simpler: craft node where *node == node -> self-loop.
+    // g_ppp->g_pp->g_ptr->g_i32. If we make readPointer(X)==X, list loops.
+    // Use g_pp slot: write &g_pp into *(&g_pp) -> self.
     const pp = victim.addr.g_pp;
     const saved = proc.readPointer(pp);
     proc.writePointer(pp, pp);
     try {
       const list = proc.entityList({ first: pp, next: 0, max: 10 });
       const arr = list.toArray();
-      // FIXED: cycle detection stops at the repeated node â€” a self-loop yields
+      // FIXED: cycle detection stops at the repeated node -- a self-loop yields
       // 1 element, not `max` duplicates.
       expect(arr.length).toBe(1);
       expect(arr[0]).toBe(pp);
@@ -634,12 +630,12 @@ describe('EntityList fuzz', () => {
     }
     rec(
       'next=self cycle',
-      'cycle detected â€” stops at repeat (no hang, no dupes)',
+      'cycle detected -- stops at repeat (no hang, no dupes)',
       'ok',
     );
   });
 
-  test('max=0 â†’ empty list (0 is legal)', () => {
+  test('max=0 -> empty list (0 is legal)', () => {
     const list = proc.entityList({
       first: victim.addr.g_array,
       stride: 4,
@@ -654,7 +650,7 @@ describe('EntityList fuzz', () => {
     ['max=NaN', NaN],
     ['max=1e9 (over cap)', 1e9],
     ['max=0.5', 0.5],
-  ])('%s â†’ TypeError (FIXED)', (_l, max) => {
+  ])('%s -> TypeError (FIXED)', (_l, max) => {
     const p = probe(() =>
       proc.entityList({ first: victim.addr.g_array, stride: 4, max }),
     );
@@ -667,15 +663,15 @@ describe('EntityList fuzz', () => {
     expect(p.err).toBeInstanceOf(TypeError);
   });
 
-  test('first=null pointer (linked) â€” read fails â†’ empty', () => {
-    // next!=undefined â†’ linked mode: readPointer(first+next). first=0 â†’ ReadError â†’ iterator catches â†’ empty
+  test('first=null pointer (linked) -- read fails -> empty', () => {
+    // next!=undefined -> linked mode: readPointer(first+next). first=0 -> ReadError -> iterator catches -> empty
     const list = proc.entityList({ first: 0n, next: 0, max: 5 });
     const arr = list.toArray();
     expect(arr.length).toBe(0);
     rec('first=null linked', 'empty (catch swallows)', 'ok');
   });
 
-  test('no stride and no next â€” constructor throws', () => {
+  test('no stride and no next -- constructor throws', () => {
     expect(() => proc.entityList({ first: 0n } as any)).toThrow(/either/);
     rec('no stride/next', 'TypeError', 'ok');
   });
@@ -684,12 +680,12 @@ describe('EntityList fuzz', () => {
 /* ---------------- readMany ---------------- */
 
 describe('readMany fuzz', () => {
-  test('empty reqs â†’ []', () => {
+  test('empty reqs -> []', () => {
     expect(proc.readMany([])).toEqual([]);
     rec('readMany []', 'empty', 'ok');
   });
 
-  test('addr=0 â†’ null', () => {
+  test('addr=0 -> null', () => {
     const [v] = proc.readMany([{ addr: 0n, type: 'int32' }]);
     expect(v).toBeNull();
     rec('readMany addr=0', 'null', 'ok');
@@ -697,14 +693,14 @@ describe('readMany fuzz', () => {
 
   test('uint64 straddling page boundary (real data)', () => {
     // g_array is 64*4=256B; place a straddle: read 8B at last-4 of page? Need a committed next page.
-    // Use g_bigbuf (4KB) â€” read last 8 bytes starting at bigbuf+0xFF8 (within page).
+    // Use g_bigbuf (4KB) -- read last 8 bytes starting at bigbuf+0xFF8 (within page).
     const addr = victim.addr.g_bigbuf + 0xff8n;
     const [v] = proc.readMany([{ addr, type: 'uint64' }]);
     expect(v).not.toBeNull();
     // true straddle: page boundary between two committed pages
     const q1 = proc.queryAddress(victim.addr.g_bigbuf)! as any;
     if (q1 && q1.state === 0x1000) {
-      const straddle = victim.addr.g_bigbuf + 0xffcn; // uint64 â†’ bytes FFC..1003
+      const straddle = victim.addr.g_bigbuf + 0xffcn; // uint64 -> bytes FFC..1003
       const [sv] = proc.readMany([{ addr: straddle, type: 'uint64' }]);
       // next page may or may not be committed; either null or real value, NOT garbage
       rec(
@@ -715,7 +711,7 @@ describe('readMany fuzz', () => {
     }
   });
 
-  test('duplicate addrs â€” decode each independently', () => {
+  test('duplicate addrs -- decode each independently', () => {
     const [a, b] = proc.readMany([
       { addr: victim.addr.g_i32, type: 'int32' },
       { addr: victim.addr.g_i32, type: 'int32' },
@@ -724,14 +720,14 @@ describe('readMany fuzz', () => {
     rec('readMany dup addrs', 'both decoded', 'ok');
   });
 
-  test('type=pointer on x64 â†’ 8B read (fine here)', () => {
+  test('type=pointer on x64 -> 8B read (fine here)', () => {
     const [p] = proc.readMany([{ addr: victim.addr.g_ptr, type: 'pointer' }]);
     expect(p).toBe(victim.addr.g_i32);
     rec("readMany 'pointer'", '8B ptr', 'ok');
   });
 
-  test('addr spanning unmapped page â†’ null, not garbage', () => {
-    // guard region second page is PAGE_GUARD â€” queryAddress reports committed? NOACCESS.
+  test('addr spanning unmapped page -> null, not garbage', () => {
+    // guard region second page is PAGE_GUARD -- queryAddress reports committed? NOACCESS.
     const guardPg = victim.addr.g_guard + 0x1000n;
     const [v] = proc.readMany([{ addr: guardPg, type: 'int32' }]);
     expect(v).toBeNull();
@@ -742,13 +738,13 @@ describe('readMany fuzz', () => {
 /* ---------------- findPointersTo ---------------- */
 
 describe('findPointersTo fuzz', () => {
-  test('target=0 â€” would match every null ptr; scoped to module', async () => {
+  test('target=0 -- would match every null ptr; scoped to module', async () => {
     const hits = await proc.findPointersTo(0n, { module: 'victim.exe' });
     expect(Array.isArray(hits)).toBe(true);
     rec('findPointersTo(0)', `${hits.length} hits in victim.exe`, 'ok');
   }, 15000);
 
-  test('target in unmapped range â†’ [] (no pointers stored)', async () => {
+  test('target in unmapped range -> [] (no pointers stored)', async () => {
     const hits = await proc.findPointersTo(0xdead0000n, {
       module: 'victim.exe',
     });
@@ -756,7 +752,7 @@ describe('findPointersTo fuzz', () => {
     rec('findPointersTo unmapped', '[]', 'ok');
   });
 
-  test('module does not exist â†’ []', async () => {
+  test('module does not exist -> []', async () => {
     const hits = await proc.findPointersTo(victim.addr.g_i32, {
       module: 'nosuch.dll',
     });

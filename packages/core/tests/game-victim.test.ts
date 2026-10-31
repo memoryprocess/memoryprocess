@@ -1,13 +1,13 @@
 // End-to-end audit of the cheat-dev layer against a simulated game engine
 // (tests/gamevictim.exe): polymorphic heap entities, a ticking sim thread,
 // orbiting camera view matrix, PAGE_GUARD region. All assertions are
-// predicate/liveness-based — the sim mutates everything continuously.
+// predicate/liveness-based -- the sim mutates everything continuously.
 //
 // Chain semantics (resolvePointer / proc.addr): `base` is DEREFERENCED
 // first, then every offset except the last is a deref hop; the last offset
-// is ADDED. So `proc.addr(&g_engine, 0x18, 0x20, 0, 0)` ≡
-//   readPtr(&g_engine) → eng; readPtr(eng+0x18) → world;
-//   readPtr(world+0x20) → el; readPtr(el+0x00) → array; +0.
+// is ADDED. So `proc.addr(&g_engine, 0x18, 0x20, 0, 0)` ===
+//   readPtr(&g_engine) -> eng; readPtr(eng+0x18) -> world;
+//   readPtr(world+0x20) -> el; readPtr(el+0x00) -> array; +0.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { Process, Offsets } from '../src/index.js';
 import type { EntitySchema } from '../src/index.js';
@@ -54,7 +54,7 @@ const ENTITY_SCHEMA: EntitySchema = {
   displayName: [O.displayName, 'wstring:32'],
 };
 
-const GE = () => gv.addr.g_engine; // &g_engine — static global, chain anchor
+const GE = () => gv.addr.g_engine; // &g_engine -- static global, chain anchor
 
 /** Resolve the EntityList struct, ptr-array base + live count. */
 function entityListAddr(proc: Process): {
@@ -72,17 +72,17 @@ function entityListAddr(proc: Process): {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-describe('gamevictim — engine root & deep pointer chains', () => {
+describe('gamevictim -- engine root & deep pointer chains', () => {
   test("proc.addr('gamevictim.exe', rva) reaches the engine singleton", () => {
     using proc = Process.open(gv.pid);
     const mod = proc.module('gamevictim.exe')!;
     const rva = Number(gv.addr.g_engine) - mod.base;
-    // 'mod', rva → &g_engine; chain [0] → *g_engine (the heap object)
+    // 'mod', rva -> &g_engine; chain [0] -> *g_engine (the heap object)
     const a = proc.addr('gamevictim.exe', rva, 0);
     expect(a.resolve()).toBe(gv.addr.g_engineObj);
   });
 
-  test('g_engine → world → entities → array (4-hop chain)', () => {
+  test('g_engine -> world -> entities -> array (4-hop chain)', () => {
     using proc = Process.open(gv.pid);
     const arr = proc.addr(GE(), O.world, O.entities, O.elArray, 0);
     expect(arr.resolve()).toBe(gv.addr.g_entArray);
@@ -93,7 +93,7 @@ describe('gamevictim — engine root & deep pointer chains', () => {
     expect(cnt).toBeLessThanOrEqual(16);
   });
 
-  test('g_engine → net → tickRate / serverName', () => {
+  test('g_engine -> net -> tickRate / serverName', () => {
     using proc = Process.open(gv.pid);
     expect(proc.addr(GE(), O.net, 0).resolve()).toBe(gv.addr.g_net);
     expect(proc.readInt32(gv.addr.g_net)).toBe(20);
@@ -102,7 +102,7 @@ describe('gamevictim — engine root & deep pointer chains', () => {
   });
 });
 
-describe('gamevictim — live entity list (polymorphic, churning)', () => {
+describe('gamevictim -- live entity list (polymorphic, churning)', () => {
   test('entityList over the ptr array yields live Entity snapshots', () => {
     using proc = Process.open(gv.pid);
     const { first, count } = entityListAddr(proc);
@@ -125,7 +125,7 @@ describe('gamevictim — live entity list (polymorphic, churning)', () => {
         displayName: string;
         pos: { x: number; y: number; z: number };
       }>();
-      // Mid-churn race: slots are filled from a live heap — a snapshot can
+      // Mid-churn race: slots are filled from a live heap -- a snapshot can
       // catch a partially-constructed or just-freed entity (id=0, empty
       // name, garbage flags). Anything not fully sane is skipped; the
       // count is asserted below over the fully-formed set.
@@ -162,7 +162,7 @@ describe('gamevictim — live entity list (polymorphic, churning)', () => {
     expect(Math.abs((e.read('health') as number) - 42.0)).toBeLessThan(0.5);
   });
 
-  test('localPlayer: world+0x28 → entity with inv → money (2nd-level deref)', () => {
+  test('localPlayer: world+0x28 -> entity with inv -> money (2nd-level deref)', () => {
     using proc = Process.open(gv.pid);
     const lp = proc.addr(GE(), O.world, O.localPlayer, 0);
     expect(lp.resolve()).toBe(gv.addr.g_localPlayer);
@@ -200,7 +200,7 @@ describe('gamevictim — live entity list (polymorphic, churning)', () => {
   });
 });
 
-describe('gamevictim — viewMatrix (orbiting camera)', () => {
+describe('gamevictim -- viewMatrix (orbiting camera)', () => {
   test('16 floats resolve via chain and CHANGE between reads', async () => {
     using proc = Process.open(gv.pid);
     const vm = proc.addr(GE(), O.world, O.viewMatrix);
@@ -217,12 +217,12 @@ describe('gamevictim — viewMatrix (orbiting camera)', () => {
   });
 });
 
-describe('gamevictim — findPointersTo / Offsets', () => {
+describe('gamevictim -- findPointersTo / Offsets', () => {
   test('findPointersTo(localPlayer) finds its entity-list slot + world field', async () => {
     using proc = Process.open(gv.pid);
     const { first, count } = entityListAddr(proc);
     expect(count).toBeGreaterThanOrEqual(4);
-    // localPlayer is never killed by the sim → stable scan target
+    // localPlayer is never killed by the sim -> stable scan target
     const hits = await proc.findPointersTo(gv.addr.g_localPlayer);
     const inList = hits.filter(
       (h) => h >= first && h < first + 8n * 64n && (h - first) % 8n === 0n,
@@ -233,7 +233,7 @@ describe('gamevictim — findPointersTo / Offsets', () => {
     expect(hits).toContain(world + BigInt(O.localPlayer));
   });
 
-  test('Offsets with a cs2-style json resolves g_engine → chain works', async () => {
+  test('Offsets with a cs2-style json resolves g_engine -> chain works', async () => {
     using proc = Process.open(gv.pid);
     const mod = proc.module('gamevictim.exe')!;
     const off = Offsets.of(proc, {
@@ -249,17 +249,17 @@ describe('gamevictim — findPointersTo / Offsets', () => {
     expect(off.netvars.m_iHealth).toBe(O.health);
     // @ts-expect-error proxy-populated
     expect(off.dwMarker.readBuffer(4).toString('latin1')).toBe('MPGV');
-    // cheat-style chain: dwGameEngine → eng → world → localPlayer
+    // cheat-style chain: dwGameEngine -> eng -> world -> localPlayer
     // @ts-expect-error proxy-populated
     const lp = off.dwGameEngine
-      .add(O.world) // deref eng+0x18 → World*
-      .add(O.localPlayer) // world+localPlayer → Entity*
+      .add(O.world) // deref eng+0x18 -> World*
+      .add(O.localPlayer) // world+localPlayer -> Entity*
       .add(0)
       .resolve();
     expect(lp).toBe(gv.addr.g_localPlayer);
   });
 
-  test('AOB marker scan → scanUnique finds the sentinel in .data', async () => {
+  test('AOB marker scan -> scanUnique finds the sentinel in .data', async () => {
     using proc = Process.open(gv.pid);
     const hit = await proc.scanUnique(
       '4D 50 47 56 00 11 22 33 44 55 66 77 88 99 AA BB',
@@ -269,7 +269,7 @@ describe('gamevictim — findPointersTo / Offsets', () => {
   });
 });
 
-describe('gamevictim — liveness & edge regions', () => {
+describe('gamevictim -- liveness & edge regions', () => {
   test('sim thread alive: entity[0] health/pos (or identity) changes ~400ms', async () => {
     using proc = Process.open(gv.pid);
     const { first } = entityListAddr(proc);

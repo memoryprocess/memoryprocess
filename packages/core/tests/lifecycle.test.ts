@@ -1,5 +1,5 @@
 /**
- * lifecycle — QA round-4 TS-layer fixes:
+ * lifecycle -- QA round-4 TS-layer fixes:
  *   C1  FinalizationRegistry + exit sweep (double-close safe, no API break)
  *   C2  watch/freeze timers unref'd + WeakRef'd (won't pin Process/event loop)
  *   perf  module cache (module() memoized, miss re-enumerates, refreshModules)
@@ -32,7 +32,7 @@ afterAll(() => {
   victim?.kill();
 });
 
-describe('C1 — finalizer / close lifecycle', () => {
+describe('C1 -- finalizer / close lifecycle', () => {
   test('close() twice is a safe no-op (finalizer unregistered)', () => {
     const proc = Process.open(victim.pid);
     proc.close();
@@ -47,7 +47,7 @@ describe('C1 — finalizer / close lifecycle', () => {
   });
 });
 
-describe('C2 — watch/freeze do not anchor the process or event loop', () => {
+describe('C2 -- watch/freeze do not anchor the process or event loop', () => {
   test("watch returns an unsubscribe fn and its timer is unref'd", () => {
     using proc = Process.open(victim.pid);
     const un = proc.watch(victim.addr.g_counter, () => {}, 25);
@@ -64,11 +64,11 @@ describe('C2 — watch/freeze do not anchor the process or event loop', () => {
 
   test("subprocess: open + watch + return exits promptly (timer unref'd)", () => {
     // If watch's interval were NOT unref'd, this script would hang past the
-    // 4s timeout — the interval would keep the event loop alive.
+    // 4s timeout -- the interval would keep the event loop alive.
     const code =
       `import {Process} from ${JSON.stringify(srcIndex)};` +
       `const p=Process.open(${victim.pid});` +
-      `p.watch(0x10000n,()=>{},10);` + // bogus addr is fine — only the timer matters
+      `p.watch(0x10000n,()=>{},10);` + // bogus addr is fine -- only the timer matters
       `console.log('DONE');`;
     const t0 = Date.now();
     const r = spawnSync(BUN, ['-e', code], {
@@ -81,7 +81,7 @@ describe('C2 — watch/freeze do not anchor the process or event loop', () => {
     expect(r.stdout?.toString() ?? '').toContain('DONE');
   });
 
-  test('watch cb throw → onError invoked, watcher stays alive', async () => {
+  test('watch cb throw -> onError invoked, watcher stays alive', async () => {
     using proc = Process.open(victim.pid);
     const errs: unknown[] = [];
     let calls = 0;
@@ -102,17 +102,17 @@ describe('C2 — watch/freeze do not anchor the process or event loop', () => {
   });
 });
 
-describe('perf — module cache', () => {
+describe('perf -- module cache', () => {
   test('module() is memoized (same object) until refreshModules()', () => {
     using proc = Process.open(victim.pid);
     const a = proc.module('victim.exe');
     const b = proc.module('victim.exe');
     expect(a).toBeDefined();
-    expect(a).toBe(b); // cache hit — identical object
+    expect(a).toBe(b); // cache hit -- identical object
     proc.refreshModules();
     const c = proc.module('victim.exe');
     expect(c).toBeDefined();
-    expect(c).not.toBe(a); // re-enumerated — new object
+    expect(c).not.toBe(a); // re-enumerated -- new object
     expect(c!.base).toBe(a!.base);
   });
 
@@ -127,14 +127,14 @@ describe('perf — module cache', () => {
 
   test('module() miss re-enumerates (fresh dll appears on re-lookup)', () => {
     using proc = Process.open(victim.pid);
-    // 'testdll.dll' was never loaded into the victim — miss twice.
+    // 'testdll.dll' was never loaded into the victim -- miss twice.
     expect(proc.module('notloaded-qa4.dll')).toBeUndefined();
     expect(proc.module('notloaded-qa4.dll')).toBeUndefined();
   });
 });
 
-describe('H5 — tid ownership validation', () => {
-  // Our own tids are guaranteed-foreign to the victim Process — deterministic.
+describe('H5 -- tid ownership validation', () => {
+  // Our own tids are guaranteed-foreign to the victim Process -- deterministic.
   const foreignTid = (): number => {
     using self = Process.open(process.pid);
     return self.threads()[0]!;
@@ -178,15 +178,15 @@ describe('H5 — tid ownership validation', () => {
   });
 });
 
-describe('H1 — timeout validation', () => {
-  test('callRemote negative/NaN timeout → TypeError', () => {
+describe('H1 -- timeout validation', () => {
+  test('callRemote negative/NaN timeout -> TypeError', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.callRemote(0n, 0, -1)).toThrow(TypeError);
     expect(() => proc.callRemote(0n, 0, Number.NaN)).toThrow(TypeError);
   });
 
-  test('callRemote valid timeout does NOT throw TypeError (dedicated victim — remote AV is fatal)', async () => {
-    // callRemote(0) makes the remote thread AV → target dies. That's inherent
+  test('callRemote valid timeout does NOT throw TypeError (dedicated victim -- remote AV is fatal)', async () => {
+    // callRemote(0) makes the remote thread AV -> target dies. That's inherent
     // to CreateRemoteThread; use a throwaway victim so the shared one survives.
     const v = await spawnVictim();
     try {
@@ -198,20 +198,20 @@ describe('H1 — timeout validation', () => {
     }
   });
 
-  test('execShellcode negative timeout → TypeError', () => {
+  test('execShellcode negative timeout -> TypeError', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.execShellcode(Buffer.from([0xc3]), 0, -1)).toThrow(
       TypeError,
     );
   });
 
-  test('execShellcode(empty) → TypeError', () => {
+  test('execShellcode(empty) -> TypeError', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.execShellcode(Buffer.alloc(0))).toThrow(TypeError);
   });
 });
 
-describe('m3 — typed PROCESS_CLOSED', () => {
+describe('m3 -- typed PROCESS_CLOSED', () => {
   test('read-after-close throws ProcessClosedError with code PROCESS_CLOSED', () => {
     const proc = Process.open(victim.pid);
     proc.close();
@@ -236,7 +236,7 @@ describe('entity schema span guard', () => {
     ).toThrow(InvalidSchemaError);
   });
 
-  test('span ≤ 64KiB still works', () => {
+  test('span <= 64KiB still works', () => {
     using proc = Process.open(victim.pid);
     const e = proc.entity(victim.addr.g_entity, {
       id: [0, 'int32'],

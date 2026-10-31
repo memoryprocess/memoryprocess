@@ -69,7 +69,7 @@ describe('sessions', () => {
     expect(err(bad).code).toBeDefined();
   });
 
-  test('unknown session → UNKNOWN_SESSION envelope', async () => {
+  test('unknown session -> UNKNOWN_SESSION envelope', async () => {
     const r = await call('mem_read', {
       session: 'p999',
       addr: '0x10',
@@ -88,13 +88,13 @@ describe('sessions', () => {
 });
 
 describe('read / write / journal / undo', () => {
-  test('mem_read u32/str/ptr/bytes — numbers stay numbers, ptrs are hex', async () => {
+  test('mem_read u32/str/ptr/bytes -- numbers stay numbers, ptrs are hex', async () => {
     const u32 = await ok('mem_read', {
       session,
       addr: hex(victim.addr.g_u32),
       type: 'u32',
     });
-    expect(u32.value).toBe(0xdeadbeef); // fits in a JS number → number
+    expect(u32.value).toBe(0xdeadbeef); // fits in a JS number -> number
 
     const str = await ok('mem_read', {
       session,
@@ -108,7 +108,7 @@ describe('read / write / journal / undo', () => {
       addr: hex(victim.addr.g_ptr),
       type: 'ptr',
     });
-    expect(ptr.value).toBe(hex(victim.addr.g_i32)); // 64-bit → hex string
+    expect(ptr.value).toBe(hex(victim.addr.g_i32)); // 64-bit -> hex string
 
     const bytes = await ok('mem_read', {
       session,
@@ -136,7 +136,7 @@ describe('read / write / journal / undo', () => {
     expect((j as unknown as unknown[]).length).toBe(0);
   });
 
-  test('real write → journal grows → mem_undo restores', async () => {
+  test('real write -> journal grows -> mem_undo restores', async () => {
     const addr = hex(victim.addr.g_u32);
     await ok('mem_write', { session, addr, type: 'u32', value: '0x41414141' });
     const read = await ok('mem_read', { session, addr, type: 'u32' });
@@ -153,7 +153,7 @@ describe('read / write / journal / undo', () => {
     expect(restored.value).toBe(0xdeadbeef);
   });
 
-  test('write to unmapped address → error envelope', async () => {
+  test('write to unmapped address -> error envelope', async () => {
     const r = await call('mem_write', {
       session,
       addr: '0x1',
@@ -167,7 +167,7 @@ describe('read / write / journal / undo', () => {
 
 describe('scan + refine', () => {
   test('mem_scan finds a sentinel in RW memory; limit caps hits', async () => {
-    // Allocate a private RW page and seed a unique sentinel — module .data is
+    // Allocate a private RW page and seed a unique sentinel -- module .data is
     // read-only under MSVC, which onlyWritable:true (the default) skips.
     const a = await ok('eval_js', {
       session,
@@ -287,7 +287,7 @@ describe('pointer resolve + watch/freeze', () => {
       ms: 10,
     });
     const freezeId = f.freezeId as string;
-    // clobber it — the freeze timer must restore within a few ticks
+    // clobber it -- the freeze timer must restore within a few ticks
     await ok('mem_write', { session, addr, type: 'i32', value: -1 });
     await new Promise((r) => setTimeout(r, 120));
     const read = await ok('mem_read', { session, addr, type: 'i32' });
@@ -296,7 +296,7 @@ describe('pointer resolve + watch/freeze', () => {
     const again = await call('mem_unfreeze', { freezeId });
     expect(again.ok).toBe(false);
     expect(err(again).code).toBe('UNKNOWN_FREEZE');
-    // restore sentinel for nothing — scratch is private, fine to leave
+    // restore sentinel for nothing -- scratch is private, fine to leave
   });
 });
 
@@ -359,7 +359,7 @@ describe('mem_scan_pattern + mem_regions', () => {
   });
 
   test('mem_scan_pattern multi-hit honors limit/truncated', async () => {
-    // "DE AD" appears in g_pattern and twice in g_pattern2 → ≥3 hits
+    // "DE AD" appears in g_pattern and twice in g_pattern2 -> >=3 hits
     const r = await ok('mem_scan_pattern', {
       session,
       pattern: 'DE AD',
@@ -403,7 +403,7 @@ describe('mem_scan_pattern + mem_regions', () => {
 
 describe('mem_freeze narrow ints', () => {
   test('i8 freeze with a negative value writes the two\u2019s-complement byte', async () => {
-    // seed g_u8 = 0x7F then freeze -5 → raw byte must read back 0xFB, not 0x05
+    // seed g_u8 = 0x7F then freeze -5 -> raw byte must read back 0xFB, not 0x05
     const addr = hex(victim.addr.g_u8);
     const f = await ok('mem_freeze', {
       session,

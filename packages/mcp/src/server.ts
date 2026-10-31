@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @memoryprocess/mcp — MCP server exposing the memoryprocess toolkit to
+ * @memoryprocess/mcp -- MCP server exposing the memoryprocess toolkit to
  * LLM agents over stdio (the primary agentic surface).
  *
  * Usage:
@@ -88,7 +88,7 @@ for (const name of toolNames({ evalEnabled })) {
         args as Record<string, unknown>,
         { evalEnabled },
       );
-      // structuredContent must be a JSON object — wrap scalars/arrays.
+      // structuredContent must be a JSON object -- wrap scalars/arrays.
       const data =
         result.ok === true
           ? result.data !== null &&

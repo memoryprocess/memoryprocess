@@ -8,8 +8,8 @@ import {
 } from '../src/index.js';
 import { spawnVictim, type Victim } from './victim.js';
 
-// abuse2 — wide fuzz/abuse suite. Every case must produce a graceful
-// throw / benign return — NEVER a crash or a hang. A crash here is a
+// abuse2 -- wide fuzz/abuse suite. Every case must produce a graceful
+// throw / benign return -- NEVER a crash or a hang. A crash here is a
 // library bug (mark it // CRASH:).
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -24,7 +24,7 @@ async function withTimeout<T>(
     const value = await Promise.race([
       p,
       new Promise<never>((_, rej) =>
-        setTimeout(() => rej(new Error('TIMEOUT — possible hang')), ms),
+        setTimeout(() => rej(new Error('TIMEOUT -- possible hang')), ms),
       ),
     ]);
     return { ok: true, value };
@@ -57,24 +57,24 @@ afterAll(() => {
 
 // ---------------------------------------------------------------- precision
 describe('precision / out-of-range addresses', () => {
-  test('readInt32(2^53+1) → ReadError', () => {
+  test('readInt32(2^53+1) -> ReadError', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.readInt32(2n ** 53n + 1n)).toThrow(ReadError);
   });
-  test('readBuffer(0x8000000000000, 8) → ReadError', () => {
+  test('readBuffer(0x8000000000000, 8) -> ReadError', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.readBuffer(0x8000000000000n, 8)).toThrow(ReadError);
   });
-  test('readSafe(0xFFFFFFFFFFFFFF00, 16) → 16-byte buffer', () => {
+  test('readSafe(0xFFFFFFFFFFFFFF00, 16) -> 16-byte buffer', () => {
     using proc = Process.open(victim.pid);
     const buf = proc.readSafe(0xffffffffffffff00n, 16);
     expect(buf.length).toBe(16);
   });
-  test('readPointer(u64 max) → ReadError, no wraparound read', () => {
+  test('readPointer(u64 max) -> ReadError, no wraparound read', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.readPointer(0xffffffffffffffffn)).toThrow(ReadError);
   });
-  test('writeInt32(2^53+1) → WriteError', () => {
+  test('writeInt32(2^53+1) -> WriteError', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.writeInt32(2n ** 53n + 1n, 0)).toThrow(WriteError);
   });
@@ -83,27 +83,27 @@ describe('precision / out-of-range addresses', () => {
 describe('size abuse (-1/0/2^32/1e18/NaN/Infinity)', () => {
   const badSizes = [-1, 2 ** 32, 1e18, NaN, Infinity, -Infinity];
   for (const s of badSizes) {
-    test(`readSafe size ${s} → RangeError`, () => {
+    test(`readSafe size ${s} -> RangeError`, () => {
       using proc = Process.open(victim.pid);
       expect(() => proc.readSafe(victim.addr.g_i32, s)).toThrow(RangeError);
     });
-    test(`readBuffer size ${s} → RangeError`, () => {
+    test(`readBuffer size ${s} -> RangeError`, () => {
       using proc = Process.open(victim.pid);
       expect(() => proc.readBuffer(victim.addr.g_i32, s)).toThrow(RangeError);
     });
-    test(`alloc size ${s} → throw or benign`, () => {
+    test(`alloc size ${s} -> throw or benign`, () => {
       using proc = Process.open(victim.pid);
       const r = benignOrThrow(() => proc.alloc(s, Protection.PAGE_READWRITE));
       if (!r.threw && typeof r.value === 'bigint' && r.value !== 0n)
         proc.free(r.value as bigint);
     });
   }
-  test('readSafe size 0 → benign (0-byte buffer or throw)', () => {
+  test('readSafe size 0 -> benign (0-byte buffer or throw)', () => {
     using proc = Process.open(victim.pid);
     const r = benignOrThrow(() => proc.readSafe(victim.addr.g_i32, 0));
     if (!r.threw) expect((r.value as Buffer).length).toBe(0);
   });
-  test('alloc size 0 → benign', () => {
+  test('alloc size 0 -> benign', () => {
     using proc = Process.open(victim.pid);
     const r = benignOrThrow(() => proc.alloc(0, Protection.PAGE_READWRITE));
     if (!r.threw && r.value) proc.free(r.value as bigint);
@@ -111,57 +111,57 @@ describe('size abuse (-1/0/2^32/1e18/NaN/Infinity)', () => {
 });
 
 // ------------------------------------------------------------ type confusion
-describe('type confusion — wrong arg types must not cross N-API', () => {
-  test("readInt32('x') → TypeError", () => {
+describe('type confusion -- wrong arg types must not cross N-API', () => {
+  test("readInt32('x') -> TypeError", () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.readInt32('x' as any)).toThrow(TypeError);
   });
-  test("writeBuffer(addr, 'str') — currently accepts string, must not crash", () => {
+  test("writeBuffer(addr, 'str') -- currently accepts string, must not crash", () => {
     using proc = Process.open(victim.pid);
     benignOrThrow(() => proc.writeBuffer(victim.addr.g_bigbuf, 'str' as any));
   });
-  test('writeBuffer(addr, 123) → TypeError', () => {
+  test('writeBuffer(addr, 123) -> TypeError', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.writeBuffer(victim.addr.g_bigbuf, 123 as any)).toThrow(
       TypeError,
     );
   });
-  test('scan(123) → TypeError', async () => {
+  test('scan(123) -> TypeError', async () => {
     using proc = Process.open(victim.pid);
     await expect(proc.scan(123 as any)).rejects.toThrow(TypeError);
   });
-  test("protect(addr, sz, 'x') → TypeError", () => {
+  test("protect(addr, sz, 'x') -> TypeError", () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.protect(victim.addr.g_i32, 4, 'x' as any)).toThrow(
       TypeError,
     );
   });
-  test("hook(src, 'notnum') → TypeError", () => {
+  test("hook(src, 'notnum') -> TypeError", () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.hook(victim.addr.g_i32, 'notnum' as any)).toThrow(
       TypeError,
     );
   });
-  test("disassemble(addr, 'x') → TypeError", () => {
+  test("disassemble(addr, 'x') -> TypeError", () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.disassemble(victim.addr.g_i32, 'x' as any)).toThrow(
       TypeError,
     );
   });
-  test("freeze(addr, 'nope', 1) → TypeError", () => {
+  test("freeze(addr, 'nope', 1) -> TypeError", () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.freeze(victim.addr.g_u32, 'nope' as any, 1)).toThrow(
       TypeError,
     );
   });
-  test('writeInt32(addr, {}) — value confusion benign or throw', () => {
+  test('writeInt32(addr, {}) -- value confusion benign or throw', () => {
     using proc = Process.open(victim.pid);
     benignOrThrow(() => proc.writeInt32(victim.addr.g_bigbuf, {} as any));
   });
 });
 
 // --------------------------------------------------------------- after-close
-describe('after-close — every method throws /closed|open/i', () => {
+describe('after-close -- every method throws /closed|open/i', () => {
   test('table-driven: ~40 method calls on a closed handle', async () => {
     const proc = Process.open(victim.pid);
     proc.close();
@@ -244,7 +244,7 @@ describe('scan abuse', () => {
     expect(r.ok).toBe(true);
     expect(Array.isArray(r.value)).toBe(true);
   });
-  test("match-everything '?? ?? ?? ??' bounded window → hits, no crash", async () => {
+  test("match-everything '?? ?? ?? ??' bounded window -> hits, no crash", async () => {
     using proc = Process.open(victim.pid);
     const start = Number(victim.addr.g_bigbuf);
     const r = await withTimeout(
@@ -253,7 +253,7 @@ describe('scan abuse', () => {
     expect(r.ok).toBe(true);
     expect((r.value as bigint[]).length).toBeGreaterThan(0);
   });
-  test('pattern longer than the scanned region → 0 hits', async () => {
+  test('pattern longer than the scanned region -> 0 hits', async () => {
     using proc = Process.open(victim.pid);
     const start = Number(victim.addr.g_i32);
     const hits = await proc.scan(
@@ -262,30 +262,30 @@ describe('scan abuse', () => {
     );
     expect(hits.length).toBe(0);
   });
-  test("scanValue({type:'pointer'}) → TypeError (write-only type)", async () => {
+  test("scanValue({type:'pointer'}) -> TypeError (write-only type)", async () => {
     using proc = Process.open(victim.pid);
     // 'pointer' is a write-type; scanning for it is rejected by contract.
     await expect(
       proc.scanValue(0x1234n, { type: 'pointer' as any }),
     ).rejects.toThrow(TypeError);
   });
-  test("nextScan({type:'pointer'}) → TypeError", async () => {
+  test("nextScan({type:'pointer'}) -> TypeError", async () => {
     using proc = Process.open(victim.pid);
     await expect(
       proc.nextScan([victim.addr.g_i32], 0, { type: 'pointer' as any }),
     ).rejects.toThrow(TypeError);
   });
-  test("scanValue({type:'bogus'}) → throws TypeError", async () => {
+  test("scanValue({type:'bogus'}) -> throws TypeError", async () => {
     using proc = Process.open(victim.pid);
     await expect(proc.scanValue(1, { type: 'bogus' as any })).rejects.toThrow(
       TypeError,
     );
   });
-  test('nextScan([], v) → []', async () => {
+  test('nextScan([], v) -> []', async () => {
     using proc = Process.open(victim.pid);
     expect(await proc.nextScan([], 0)).toEqual([]);
   });
-  test('nextScan on hits inside a freed region → benign, drops dead hits', async () => {
+  test('nextScan on hits inside a freed region -> benign, drops dead hits', async () => {
     using proc = Process.open(victim.pid);
     const base = proc.alloc(0x2000, Protection.PAGE_READWRITE);
     proc.writeInt64(base, 0x41414141n);
@@ -299,7 +299,7 @@ describe('scan abuse', () => {
     const kept = await proc.nextScan(hits, 0x41414141n, { type: 'int64' });
     expect(kept.map((h) => h.addr)).not.toContain(base);
   });
-  test('scan with start > end → benign (empty or throw)', async () => {
+  test('scan with start > end -> benign (empty or throw)', async () => {
     using proc = Process.open(victim.pid);
     const r = await withTimeout(
       proc.scan('AA', { start: 0x7fff0000, end: 0x1000 }),
@@ -311,18 +311,18 @@ describe('scan abuse', () => {
 
 // ------------------------------------------------------------------ hook abuse
 describe('hook / disasm abuse', () => {
-  test('hook(0x100000000000) → throws', () => {
+  test('hook(0x100000000000) -> throws', () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.hook(0x100000000000n, victim.addr.g_counter)).toThrow();
   });
-  test('hook dst 3GB away → throws /rel32|range/i', () => {
+  test('hook dst 3GB away -> throws /rel32|range/i', () => {
     using proc = Process.open(victim.pid);
     const src = proc.alloc(0x1000, Protection.PAGE_EXECUTE_READWRITE);
     proc.writeBuffer(src, Buffer.alloc(32, 0x90));
     expect(() => proc.hook(src, src + 0xc0000000n)).toThrow(/rel32|range/i);
     proc.free(src);
   });
-  test('unhook(forged handle) → false or throw, no crash', () => {
+  test('unhook(forged handle) -> false or throw, no crash', () => {
     using proc = Process.open(victim.pid);
     const forged = {
       src: 0x13370000n,
@@ -332,12 +332,12 @@ describe('hook / disasm abuse', () => {
     };
     benignOrThrow(() => proc.unhook(forged));
   });
-  test('disassemble(unmapped) → throws or []', () => {
+  test('disassemble(unmapped) -> throws or []', () => {
     using proc = Process.open(victim.pid);
     const r = benignOrThrow(() => proc.disassemble(0x1337_0000_0000n, 8));
     if (!r.threw) expect(r.value).toEqual([]);
   });
-  test('disassemble(addr, -1) → clamped or throw, no crash', () => {
+  test('disassemble(addr, -1) -> clamped or throw, no crash', () => {
     using proc = Process.open(victim.pid);
     const src = proc.alloc(0x1000, Protection.PAGE_EXECUTE_READWRITE);
     proc.writeBuffer(src, Buffer.alloc(0x1000, 0x90));
@@ -346,7 +346,7 @@ describe('hook / disasm abuse', () => {
       expect((r.value as unknown[]).length).toBeLessThanOrEqual(512);
     proc.free(src);
   });
-  test('disassemble(addr, 1e6) → bounded result', () => {
+  test('disassemble(addr, 1e6) -> bounded result', () => {
     using proc = Process.open(victim.pid);
     const src = proc.alloc(0x1000, Protection.PAGE_EXECUTE_READWRITE);
     proc.writeBuffer(src, Buffer.alloc(0x1000, 0x90));
@@ -358,11 +358,11 @@ describe('hook / disasm abuse', () => {
 
 // --------------------------------------------------------- threads / context
 describe('thread/context abuse', () => {
-  test('setThreadContext(999999, {}) → false or throw', () => {
+  test('setThreadContext(999999, {}) -> false or throw', () => {
     using proc = Process.open(victim.pid);
     benignOrThrow(() => proc.setThreadContext(999999, {}));
   });
-  test('hwBreakpoint slot 4/-1/99 → RangeError', () => {
+  test('hwBreakpoint slot 4/-1/99 -> RangeError', () => {
     using proc = Process.open(victim.pid);
     const tid = proc.threads()[0]!;
     for (const slot of [4, -1, 99] as any[])
@@ -370,21 +370,21 @@ describe('thread/context abuse', () => {
         RangeError,
       );
   });
-  test('hwBreakpoint bad size → RangeError', () => {
+  test('hwBreakpoint bad size -> RangeError', () => {
     using proc = Process.open(victim.pid);
     const tid = proc.threads()[0]!;
     expect(() =>
       proc.hwBreakpoint(tid, victim.addr.g_i32, 0, 3 as any),
     ).toThrow(RangeError);
   });
-  test('getThreadContext(0) → throws FOREIGN_TID (was: null)', () => {
+  test('getThreadContext(0) -> throws FOREIGN_TID (was: null)', () => {
     using proc = Process.open(victim.pid);
-    // H5 fix: tid 0 doesn't belong to the target — rejected, not null-queried.
+    // H5 fix: tid 0 doesn't belong to the target -- rejected, not null-queried.
     expect(() => proc.getThreadContext(0)).toThrow(
       /FOREIGN_TID|does not belong/,
     );
   });
-  test('suspendThread(0x7fffffff) → false or throw', () => {
+  test('suspendThread(0x7fffffff) -> false or throw', () => {
     using proc = Process.open(victim.pid);
     benignOrThrow(() => proc.suspendThread(0x7fffffff));
   });
@@ -392,15 +392,15 @@ describe('thread/context abuse', () => {
 
 // ------------------------------------------------------------------ injection
 describe('injection abuse', () => {
-  test("injectDll('C:\\\\nonexistent.dll') → InjectError or false", () => {
+  test("injectDll('C:\\\\nonexistent.dll') -> InjectError or false", () => {
     using proc = Process.open(victim.pid);
     benignOrThrow(() => proc.injectDll('C:\\nonexistent.dll'));
   });
-  test("injectDll('C:\\\\') → throws", () => {
+  test("injectDll('C:\\\\') -> throws", () => {
     using proc = Process.open(victim.pid);
     expect(() => proc.injectDll('C:\\')).toThrow();
   });
-  test("ejectDll('notloaded') → InjectError or false", () => {
+  test("ejectDll('notloaded') -> InjectError or false", () => {
     using proc = Process.open(victim.pid);
     benignOrThrow(() => proc.ejectDll('notloaded'));
   });
@@ -425,12 +425,12 @@ describe('exhaustion', () => {
       unfreeze();
     }
     await sleep(100);
-    // no surviving timer may rewrite g_u32 — write a sentinel and confirm it sticks
+    // no surviving timer may rewrite g_u32 -- write a sentinel and confirm it sticks
     proc.writeUInt32(victim.addr.g_u32, 0xc0ffee);
     await sleep(60);
     expect(proc.readUInt32(victim.addr.g_u32)).toBe(0xc0ffee);
   });
-  test('open/close victim 150x — no handle leak crash', () => {
+  test('open/close victim 150x -- no handle leak crash', () => {
     for (let i = 0; i < 150; i++) {
       const p = Process.open(victim.pid);
       p.readInt32(victim.addr.g_i32);
@@ -441,7 +441,7 @@ describe('exhaustion', () => {
 
 // ------------------------------------------------------------------- pid abuse
 describe('pid abuse', () => {
-  test('open(4) — System process → throws or succeeds (elevated)', () => {
+  test('open(4) -- System process -> throws or succeeds (elevated)', () => {
     benignOrThrow(() => {
       const p = Process.open(4);
       p.close();
@@ -452,12 +452,12 @@ describe('pid abuse', () => {
     expect(p.pid).toBe(process.pid);
     p.close();
   });
-  test('open(nonexistent name) → ProcessNotFoundError', () => {
+  test('open(nonexistent name) -> ProcessNotFoundError', () => {
     expect(() => Process.open('definitely-not-a-process-zzz.exe')).toThrow(
       /not found/i,
     );
   });
-  test('open(0x7fffffff) → throws', () => {
+  test('open(0x7fffffff) -> throws', () => {
     expect(() => Process.open(0x7fffffff)).toThrow();
   });
   test('killed victim: every method throws or is benign', async () => {

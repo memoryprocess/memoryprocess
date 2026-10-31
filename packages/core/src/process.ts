@@ -45,7 +45,7 @@ export interface ThreadContext {
   dr1: bigint;
   dr2: bigint;
   dr3: bigint;
-  /** Debug status register â€” B0..B3 bits identify which breakpoint fired. */
+  /** Debug status register -- B0..B3 bits identify which breakpoint fired. */
   dr6: bigint;
   dr7: bigint;
   eflags: bigint;
@@ -98,7 +98,7 @@ export interface WriteOptions {
   /**
    * Preview only: read the CURRENT bytes at the target and return a
    * {@link WritePreview} without touching the process. Agent-facing
-   * self-correction primitive — sanity-check `current` before committing.
+   * self-correction primitive -- sanity-check `current` before committing.
    */
   dryRun?: boolean;
 }
@@ -129,7 +129,7 @@ export interface ProcessDescribe {
   arch: 'x64' | 'x86';
   pointerSize: number;
   modules: { name: string; base: string; size: number }[];
-  /** committed regions that are writable and/or executable — the interesting set */
+  /** committed regions that are writable and/or executable -- the interesting set */
   rwxRegions: { base: string; size: number; protection: string }[];
   threads: number[];
 }
@@ -168,7 +168,7 @@ export interface ScanValueOptions {
 
 /**
  * One hit of a value scan: the address plus the value observed there. CE's
- * hit-list model â€” `value` is what makes relative refines ("changed",
+ * hit-list model -- `value` is what makes relative refines ("changed",
  * "increased", ...) possible: `nextScan` compares the re-read value against
  * `hit.value`, not against a user-supplied target.
  */
@@ -211,7 +211,7 @@ function checkSize(size: number): void {
 }
 
 // Guard: the native layer uses unchecked As<Number>/As<String> casts, so a
-// wrong-typed JS arg becomes a pending N-API exception â€” then the C++ code
+// wrong-typed JS arg becomes a pending N-API exception -- then the C++ code
 // throws AGAIN (napi_throw while an exception is pending) and Bun aborts with
 // "NAPI FATAL ERROR". Validate every arg that must be a Number/String here,
 // before it can cross the boundary with a bad type.
@@ -226,7 +226,7 @@ function checkAddr(v: unknown, name = 'address'): asserts v is number | bigint {
 function checkStr(v: unknown, name: string): asserts v is string {
   if (typeof v !== 'string') throw new TypeError(`${name} must be a string`);
 }
-// A negative/NaN timeout reaches the native layer as a uint32 wrap â†’ -1
+// A negative/NaN timeout reaches the native layer as a uint32 wrap -> -1
 // becomes INFINITE and a SYNC wait bricks the event loop. Validate TS-side.
 function checkTimeout(v: number, name = 'timeoutMs'): void {
   if (typeof v !== 'number' || !Number.isFinite(v) || v < 0)
@@ -324,7 +324,7 @@ const REL32_MAX = 0x7fffffffn;
 function checkRel32(rel: bigint): void {
   if (rel < REL32_MIN || rel > REL32_MAX)
     throw new Error(
-      `target out of rel32 range (rel=${rel}, must be within Â±2GB)`,
+      `target out of rel32 range (rel=${rel}, must be within +/-2GB)`,
     );
 }
 
@@ -333,11 +333,11 @@ function checkRel32(rel: bigint): void {
 /* ------------------------------------------------------------------ */
 // A `Process` that is dropped without close()/`using` would otherwise leak
 // its OpenProcess HANDLE for the host's lifetime. Two best-effort nets:
-//  1. FinalizationRegistry â€” closes the handle when the Process is GC'd.
-//     (NOT guaranteed to run, especially at exit â€” that's what #2 is for.)
-//  2. process.on('exit') â€” drains every still-open handle. Cheap and covers
+//  1. FinalizationRegistry -- closes the handle when the Process is GC'd.
+//     (NOT guaranteed to run, especially at exit -- that's what #2 is for.)
+//  2. process.on('exit') -- drains every still-open handle. Cheap and covers
 //     the "forgot to close then exited" path the registry can't.
-// `using` / explicit close() remain the recommended, deterministic path â€”
+// `using` / explicit close() remain the recommended, deterministic path --
 // this is strictly a last-resort leak plug.
 const liveHandles = new Set<number>();
 const handleFinalizer = new FinalizationRegistry<number>((h) => {
@@ -345,7 +345,7 @@ const handleFinalizer = new FinalizationRegistry<number>((h) => {
   try {
     native.closeHandle(h);
   } catch {
-    /* addon already torn down â€” nothing more we can do */
+    /* addon already torn down -- nothing more we can do */
   }
 });
 process.on('exit', () => {
@@ -362,18 +362,18 @@ process.on('exit', () => {
 export class Process implements Disposable {
   #handle: number;
   readonly pid: number;
-  // freeze()/watch() intervals â€” tracked so close() can kill them; otherwise
+  // freeze()/watch() intervals -- tracked so close() can kill them; otherwise
   // they keep polling handle 0 forever after close.
   #timers = new Set<ReturnType<typeof setInterval>>();
   // Lazily-populated module table (basenames are lowercased). Module
-  // enumeration costs a full Toolhelp snapshot (~86Âµs); addr()/pointers()/
+  // enumeration costs a full Toolhelp snapshot (~86us); addr()/pointers()/
   // Offsets hit it once per entry without this cache.
   #modCache?: { list: ModuleInfo[]; byName: Map<string, ModuleInfo> };
-  // hook() registry â€” refuses stacking a second hook on the same src (the
+  // hook() registry -- refuses stacking a second hook on the same src (the
   // first's unhook would restore pre-hook bytes under the second's patch,
   // orphaning its stub). Cleared per unhook.
   #hookedSrcs = new Set<bigint>();
-  // Ring buffer of every byte-write's prior state — the self-correction
+  // Ring buffer of every byte-write's prior state -- the self-correction
   // primitive behind undo(). Bounded (drop oldest) so a long-lived process
   // can't accumulate unbounded memory. `bytes===null` = pre-write snapshot
   // failed, that write is not undoable.
@@ -384,7 +384,7 @@ export class Process implements Disposable {
     this.#handle = handle;
     this.pid = pid;
     // Safety-net close on GC / host exit (see liveHandles above). The held
-    // value is the raw handle number â€” registering `this` would pin it.
+    // value is the raw handle number -- registering `this` would pin it.
     liveHandles.add(handle);
     handleFinalizer.register(this, handle, this);
   }
@@ -395,10 +395,10 @@ export class Process implements Disposable {
    * Pass `{ access }` (or a raw access number) to override.
    * Throws ProcessNotFoundError / AccessDeniedError.
    *
-   * NOTE â€” pid reuse: pids are recycled by Windows. Opening a recycled pid
+   * NOTE -- pid reuse: pids are recycled by Windows. Opening a recycled pid
    * yields a handle on a DIFFERENT process. If identity matters, verify
    * `module('expected.exe')` right after open.
-   * Prefer `using` or explicit close() â€” a GC'd Process relies on a
+   * Prefer `using` or explicit close() -- a GC'd Process relies on a
    * best-effort FinalizationRegistry/exit sweep to release the handle.
    */
   static open(
@@ -591,7 +591,7 @@ export class Process implements Disposable {
   //
   // Every public write takes a trailing `opts?: WriteOptions`.
   // `opts.dryRun` returns a {@link WritePreview} (current vs would-be bytes)
-  // WITHOUT writing — an agent previews, sanity-checks `current`, then
+  // WITHOUT writing -- an agent previews, sanity-checks `current`, then
   // commits. Real writes are journaled into `#writeLog` for {@link undo}.
   writeInt32(
     addr: number | bigint,
@@ -694,7 +694,7 @@ export class Process implements Disposable {
 
   /**
    * Capture the pre-write bytes at `addr` into `#writeLog` so {@link undo}
-   * can restore them. A failed snapshot records `bytes:null` — that write is
+   * can restore them. A failed snapshot records `bytes:null` -- that write is
    * journaled but skipped by undo (can't restore what was never read).
    */
   #recordWrite(addr: number | bigint, len: number): void {
@@ -711,7 +711,7 @@ export class Process implements Disposable {
   /**
    * Read-only snapshot of the write journal: newest writes last, `index` is
    * each entry's position at snapshot time. An agent inspects this to see
-   * exactly what it changed — the underlying array is never exposed.
+   * exactly what it changed -- the underlying array is never exposed.
    */
   get writeLog(): readonly WriteLogEntry[] {
     return this.#writeLog.map((e, index) => ({
@@ -727,13 +727,13 @@ export class Process implements Disposable {
    * originals may live in a code/protected region where a plain write would
    * fault). Entries whose pre-write snapshot failed (`bytes===null`) are
    * skipped without counting. Returns how many writes were actually reverted.
-   * Restores are themselves journaled — a second undo() "redoes" the write.
+   * Restores are themselves journaled -- a second undo() "redoes" the write.
    */
   undo(count = 1): number {
     this.assertOpen();
     if (!Number.isInteger(count) || count < 1)
       throw new RangeError('count must be an integer >= 1');
-    // Pop the whole batch FIRST — the restore writes are themselves journaled,
+    // Pop the whole batch FIRST -- the restore writes are themselves journaled,
     // so interleaving pop/restore would make the second pop eat the restore's
     // entry instead of the next original write.
     const batch = this.#writeLog.splice(
@@ -747,7 +747,7 @@ export class Process implements Disposable {
         this.writeProtected(e.addr, e.bytes);
         reverted++;
       } catch {
-        /* target gone or region vanished — nothing more to do */
+        /* target gone or region vanished -- nothing more to do */
       }
     }
     return reverted;
@@ -771,8 +771,8 @@ export class Process implements Disposable {
 
   // ---- modules / regions ----
   /**
-   * Loaded modules. The first call takes a Toolhelp snapshot (~86Âµs); the
-   * list is then cached per Process â€” {@link refreshModules} re-enumerates.
+   * Loaded modules. The first call takes a Toolhelp snapshot (~86us); the
+   * list is then cached per Process -- {@link refreshModules} re-enumerates.
    * The returned array is the cache itself: don't mutate it.
    */
   modules(): ModuleInfo[] {
@@ -788,7 +788,7 @@ export class Process implements Disposable {
     const want = name.toLowerCase();
     const hit = this.#moduleTable().byName.get(want);
     if (hit) return hit;
-    // Miss â†’ re-enumerate once (module may have loaded since first snapshot).
+    // Miss -> re-enumerate once (module may have loaded since first snapshot).
     this.refreshModules();
     return this.#moduleTable().byName.get(want);
   }
@@ -821,8 +821,8 @@ export class Process implements Disposable {
   // ---- memory management ----
   /**
    * Allocate memory in the remote process. Returns base address (bigint).
-   * `nearAddress` is passed to VirtualAllocEx as the lpAddress hint â€” used to
-   * land allocations within Â±2GB of a target (required for rel32 patches).
+   * `nearAddress` is passed to VirtualAllocEx as the lpAddress hint -- used to
+   * land allocations within +/-2GB of a target (required for rel32 patches).
    */
   alloc(
     size: number,
@@ -857,8 +857,8 @@ export class Process implements Disposable {
 
   /**
    * Write bytes that may live in a protected/code region: per-region
-   * protectâ†’writeâ†’restoreâ†’flush. Walks VirtualQueryEx across the whole span
-   * and restores EACH region's real old protection â€” a write spanning a
+   * protect->write->restore->flush. Walks VirtualQueryEx across the whole span
+   * and restores EACH region's real old protection -- a write spanning a
    * protection boundary no longer flattens the second region to the first's.
    */
   writeProtected(
@@ -878,7 +878,7 @@ export class Process implements Disposable {
     );
     if (!r.restored) {
       console.warn(
-        `memoryprocess: failed to restore protection at 0x${BigInt(addr).toString(16)} â€” part of the span left RWX`,
+        `memoryprocess: failed to restore protection at 0x${BigInt(addr).toString(16)} -- part of the span left RWX`,
       );
     }
     return r.ok;
@@ -921,7 +921,7 @@ export class Process implements Disposable {
   // ---- disasm / hooks / shellcode ----
 
   /**
-   * Instruction-length decode only â€” no mnemonics (not a full disassembler).
+   * Instruction-length decode only -- no mnemonics (not a full disassembler).
    * Uses the embedded HDE64 decoder on up to 4096 bytes read at `addr`.
    */
   disassemble(
@@ -957,15 +957,15 @@ export class Process implements Disposable {
    * `dst` (padded with 0xCC). Returns a {@link HookHandle} for {@link unhook}.
    *
    * CAVEATS: `src` must be an instruction-aligned entry with NO inbound
-   * branches landing in `[src+5, src+stolenLen)` â€” a branch into the pad
+   * branches landing in `[src+5, src+stolenLen)` -- a branch into the pad
    * region hits 0xCC (int3) which is intentional (crash beats silent
    * misexecution). External rel8/rel16 branches (incl. LOOP/JECXZ) and
-   * rewrites that can't reach Â±2GB from the stub are REFUSED
-   * (HOOK_RELOCATE) â€” hook a different site or pre-relocate the operands.
+   * rewrites that can't reach +/-2GB from the stub are REFUSED
+   * (HOOK_RELOCATE) -- hook a different site or pre-relocate the operands.
    * Suspend the target's threads first for a race-free patch; a thread
    * inside the stolen bytes mid-write may execute a torn instruction.
    * Re-hooking the same `src` through this Process is refused
-   * (HOOK_ALREADY) â€” chained stubs break unhook ordering.
+   * (HOOK_ALREADY) -- chained stubs break unhook ordering.
    */
   hook(src: number | bigint, dst: number | bigint): HookHandle {
     this.assertOpen();
@@ -976,7 +976,7 @@ export class Process implements Disposable {
 
     // Mid-instruction guard: backward-disassemble the 16 bytes before `src`.
     // If any decoded instruction's end runs PAST `src`, the caller hooked
-    // into the middle of a real instruction â€” the trampoline would steal a
+    // into the middle of a real instruction -- the trampoline would steal a
     // truncated opcode and diverge from the original control flow. (Best-
     // effort: code that doesn't disassemble cleanly backward, or a `src` at
     // a function start with <16B before it, skips the check.)
@@ -987,7 +987,7 @@ export class Process implements Disposable {
         const end = i.address + BigInt(i.size);
         if (end > s) {
           const err = new Error(
-            `hook: src 0x${s.toString(16)} is mid-instruction â€” an instruction ` +
+            `hook: src 0x${s.toString(16)} is mid-instruction -- an instruction ` +
               `at 0x${i.address.toString(16)} spans it (ends 0x${end.toString(16)}). ` +
               `Hook an aligned entry point.`,
           ) as Error & { code?: string };
@@ -997,22 +997,22 @@ export class Process implements Disposable {
       }
     } catch (e: any) {
       if (e?.code === 'HOOK_MISALIGNED') throw e;
-      // back-window unreadable/undecodable â†’ can't verify; proceed (the
+      // back-window unreadable/undecodable -> can't verify; proceed (the
       // forward hookSteal will still refuse undecodable bytes at src).
     }
 
     if (this.#hookedSrcs.has(s)) {
       const err = new Error(
-        `hook: src 0x${s.toString(16)} is already hooked by this Process â€” ` +
+        `hook: src 0x${s.toString(16)} is already hooked by this Process -- ` +
           'unhook first (stacked hooks break unhook ordering)',
       ) as Error & { code?: string };
       err.code = 'HOOK_ALREADY';
       throw err;
     }
 
-    // Allocate the stub FIRST â€” hookSteal needs its address to rewrite
+    // Allocate the stub FIRST -- hookSteal needs its address to rewrite
     // position-relative operands. One page covers any stolen set (max 64B
-    // worth of instructions + 5B back-jump). The stub MUST land within Â±2GB
+    // worth of instructions + 5B back-jump). The stub MUST land within +/-2GB
     // of `src` for the rel32 jmp-back AND for the rewrites to reach.
     const stub = this.#allocNear(s, 0x1000, Protection.PAGE_EXECUTE_READWRITE);
     let stolenLen = 0;
@@ -1021,7 +1021,7 @@ export class Process implements Disposable {
       const r = native.hookSteal(this.#handle, Number(s), 5, stub);
       stolenLen = r.length;
       // `bytes` is the relocated copy destined for the stub; `original` is
-      // the pristine prologue â€” unhook MUST restore the original (the victim
+      // the pristine prologue -- unhook MUST restore the original (the victim
       // crashed in round-1 when the relocated rel32 was written back to src).
       stolen = r.original;
       const back = Buffer.alloc(stolenLen + 5);
@@ -1039,7 +1039,7 @@ export class Process implements Disposable {
       patch.writeInt32LE(Number(relDst), 1);
       this.writeProtected(s, patch);
     } catch (e) {
-      // Don't orphan an RWX page in the victim when the patch fails â€” free the
+      // Don't orphan an RWX page in the victim when the patch fails -- free the
       // stub (best effort) and rethrow the original error.
       try {
         this.free(stub);
@@ -1054,17 +1054,17 @@ export class Process implements Disposable {
   }
 
   /**
-   * Allocate `size` bytes within rel32 range (Â±2GB) of `target` in the remote
+   * Allocate `size` bytes within rel32 range (+/-2GB) of `target` in the remote
    * process. Tries VirtualAllocEx hints on 64KB-spaced candidates below and
    * above the target; falls back to a non-hinted alloc (then range-checks).
    */
   #allocNear(target: bigint, size: number, protection: number): bigint {
-    const WINDOW = 0x7fff0000n; // stay comfortably inside Â±2GB
+    const WINDOW = 0x7fff0000n; // stay comfortably inside +/-2GB
     const STEP = 0x10000n; // 64KB allocation granularity
     const lo = target > WINDOW ? target - WINDOW : 0x10000n;
     const hi =
       target + WINDOW < 0x7fffffffffffn ? target + WINDOW : 0x7fffffffffffn;
-    // scan outward from the target â€” first hits are likeliest to be free
+    // scan outward from the target -- first hits are likeliest to be free
     for (const hint of [
       target,
       target - STEP,
@@ -1075,13 +1075,13 @@ export class Process implements Disposable {
     ]) {
       if (hint < lo || hint > hi) continue;
       const q = this.queryAddress(hint);
-      if (q !== null) continue; // occupied â€” pick a different candidate
+      if (q !== null) continue; // occupied -- pick a different candidate
       try {
         const p = this.alloc(size, protection, hint);
         if (p >= lo && p <= hi) return p;
         this.free(p);
       } catch {
-        /* hint rejected â€” try next */
+        /* hint rejected -- try next */
       }
     }
     // walk below the target in 64KB steps looking for a free gap
@@ -1105,13 +1105,13 @@ export class Process implements Disposable {
         /* keep walking */
       }
     }
-    // last resort: unhinted â€” usually lands in low VA on fresh processes
+    // last resort: unhinted -- usually lands in low VA on fresh processes
     const p = this.alloc(size, protection);
     const rel = p - target;
     if (rel >= REL32_MIN && rel <= REL32_MAX) return p;
     this.free(p);
     throw new Error(
-      `target out of rel32 range: could not allocate within Â±2GB of 0x${target.toString(16)}`,
+      `target out of rel32 range: could not allocate within +/-2GB of 0x${target.toString(16)}`,
     );
   }
 
@@ -1119,12 +1119,12 @@ export class Process implements Disposable {
    * Restore stolen bytes at `h.src` and free the stub. Verifies the patch is
    * still ours before writing (else we could clobber a third-party re-patch
    * or an already-restored region). Threads may still be executing inside
-   * the freed stub â€” pass `freeStub:false` to keep it (a bounded leak) when
+   * the freed stub -- pass `freeStub:false` to keep it (a bounded leak) when
    * the target is running unsuspended. Suspend first for a clean unhook.
    */
   unhook(h: HookHandle, opts: { freeStub?: boolean } = {}): boolean {
     this.assertOpen();
-    // Verify the E9 at src still points where WE put it â€” if a third party
+    // Verify the E9 at src still points where WE put it -- if a third party
     // re-patched src we don't blindly overwrite their bytes.
     const cur = this.readBuffer(h.src, 5);
     const isOurs = cur[0] === 0xe9;
@@ -1132,7 +1132,7 @@ export class Process implements Disposable {
     const relNow = isOurs ? BigInt(cur.readInt32LE(1)) : null;
     if (!isOurs || relNow !== relExpected) {
       console.warn(
-        `memoryprocess: unhook() â€” patch at 0x${h.src.toString(16)} no longer points to our dst; restoring anyway`,
+        `memoryprocess: unhook() -- patch at 0x${h.src.toString(16)} no longer points to our dst; restoring anyway`,
       );
     }
     const ok = this.writeProtected(h.src, h.stolen);
@@ -1178,7 +1178,7 @@ export class Process implements Disposable {
   /**
    * Thread IDs owned by this process.
    * COST: takes a Toolhelp snapshot of EVERY thread on the system and filters
-   * by pid â€” measured ~29ms on a busy desktop. Do not call per-frame; cache
+   * by pid -- measured ~29ms on a busy desktop. Do not call per-frame; cache
    * the result and treat it as a snapshot (new threads aren't included).
    */
   threads(): number[] {
@@ -1187,7 +1187,7 @@ export class Process implements Disposable {
   }
 
   /**
-   * Refuse to operate on a tid this process doesn't own â€” a typo'd tid would
+   * Refuse to operate on a tid this process doesn't own -- a typo'd tid would
    * otherwise suspend/patch a thread in an UNRELATED process. An empty
    * threads() list means the target is gone.
    */
@@ -1201,16 +1201,16 @@ export class Process implements Disposable {
       );
   }
 
-  /** Suspend a thread by id â€” no ownership check (internal fast path). */
+  /** Suspend a thread by id -- no ownership check (internal fast path). */
   #suspendRaw(tid: number): boolean {
     return native.suspendThread(tid);
   }
-  /** Resume a thread by id â€” no ownership check (internal fast path). */
+  /** Resume a thread by id -- no ownership check (internal fast path). */
   #resumeRaw(tid: number): boolean {
     return native.resumeThread(tid);
   }
   /**
-   * First thread reported by the Toolhelp snapshot for this process â€” in
+   * First thread reported by the Toolhelp snapshot for this process -- in
    * practice the main/owner thread for typical targets. Returns null when the
    * process has no threads.
    */
@@ -1223,11 +1223,11 @@ export class Process implements Disposable {
     this.assertOpen();
     checkNumber(tid, 'tid');
     // Refusing our own caller's TID consistently with suspendAll's
-    // SELF_SUSPEND â€” a native `suspendThread(self)` returning false is a
+    // SELF_SUSPEND -- a native `suspendThread(self)` returning false is a
     // silent partial-suspend; make it loud here.
     if (tid === native.currentThreadId() && this.pid === process.pid)
       throw new MemoryProcessError(
-        'cannot suspendThread on the calling thread â€” self-deadlock',
+        'cannot suspendThread on the calling thread -- self-deadlock',
         'SELF_SUSPEND',
       );
     this.#assertOwnedTid(tid);
@@ -1242,12 +1242,12 @@ export class Process implements Disposable {
   }
   /**
    * Suspend all threads of this process (for atomic patching). Refuses when
-   * the target IS this process â€” suspending the caller deadlocks the host.
+   * the target IS this process -- suspending the caller deadlocks the host.
    */
   suspendAll(): number[] {
     if (this.pid === process.pid)
       throw new MemoryProcessError(
-        'cannot suspendAll on own process â€” self-deadlock',
+        'cannot suspendAll on own process -- self-deadlock',
         'SELF_SUSPEND',
       );
     const t = this.threads();
@@ -1263,7 +1263,7 @@ export class Process implements Disposable {
       .forEach((id) => this.#resumeRaw(id));
   }
   /**
-   * Suspend the whole process atomically via NtSuspendProcess â€” preferred over
+   * Suspend the whole process atomically via NtSuspendProcess -- preferred over
    * {@link suspendAll} which races with new-thread creation. Pair with
    * {@link resumeProcess}. Refuses when the target IS this process
    * (self-deadlock).
@@ -1272,7 +1272,7 @@ export class Process implements Disposable {
     this.assertOpen();
     if (this.pid === process.pid)
       throw new MemoryProcessError(
-        'cannot suspendProcess on own process â€” self-deadlock',
+        'cannot suspendProcess on own process -- self-deadlock',
         'SELF_SUSPEND',
       );
     return native.suspendProcess(this.pid);
@@ -1284,7 +1284,7 @@ export class Process implements Disposable {
   }
   /**
    * Wait for the process to exit. Resolves the exit code, or null on timeout.
-   * Pass no timeoutMs to wait indefinitely â€” but note a recycled pid can make
+   * Pass no timeoutMs to wait indefinitely -- but note a recycled pid can make
    * an INFINITE wait observe the WRONG process if the target already exited
    * and the pid was reused; bound the timeout or re-verify the module list.
    */
@@ -1361,7 +1361,7 @@ export class Process implements Disposable {
   /**
    * Execute `fnAddr` on a new remote thread with `param` as lpParameter and
    * wait up to `timeoutMs` for it to exit. Returns the thread exit code, or
-   * null on failure/timeout. `param` may exceed 2^53 â€” pass a bigint for
+   * null on failure/timeout. `param` may exceed 2^53 -- pass a bigint for
    * pointers. The exit code is a 32-bit DWORD (low 32 bits of the return);
    * for full-width results have the remote fn store to `param` memory.
    */
@@ -1457,14 +1457,14 @@ export class Process implements Disposable {
    * debugger (DebugActiveProcess), arms a hardware WRITE breakpoint (Dr7
    * RW=01) on every thread, pumps the debug event loop for `timeoutMs`
    * collecting EXCEPTION_SINGLE_STEP hits, then restores debug registers and
-   * detaches â€” the target is left running and un-debugged.
+   * detaches -- the target is left running and un-debugged.
    *
    * Returns up to `maxHits` records. `rip` is the address reported by the
    * CPU; because a data breakpoint is a *trap* it fires AFTER the write, so
    * `rip` points at the instruction FOLLOWING the write (same caveat CE has).
    * `threadContext` is the full register snapshot at the hit (incl. dr6).
    *
-   * Requires permission to debug the target â€” call
+   * Requires permission to debug the target -- call
    * {@link Process.enableDebugPrivilege} first (needed even for your own
    * children on some systems; win32 5 otherwise).
    */
@@ -1613,8 +1613,8 @@ export class Process implements Disposable {
           base + BigInt(funcsRva) + BigInt(ord * 4),
           4,
         ).readUInt32LE(0);
-        // Forwarder: RVA points INSIDE the export directory â†’ it's an ASCII
-        // "DLLNAME.ExportName" string (common for kernel32â†’KernelBase stubs).
+        // Forwarder: RVA points INSIDE the export directory -> it's an ASCII
+        // "DLLNAME.ExportName" string (common for kernel32->KernelBase stubs).
         if (fnRva >= expRva && fnRva < expRva + expSize) {
           const fwd = this.readString(base + BigInt(fnRva), 256);
           const dot = fwd.indexOf('.');
@@ -1731,7 +1731,7 @@ export class Process implements Disposable {
     let end = toNum(opts.end);
     if (opts.module) {
       const m = this.module(opts.module);
-      if (!m) return []; // module not loaded â€” never silently scan all of VA
+      if (!m) return []; // module not loaded -- never silently scan all of VA
       start = m.base;
       end = m.base + m.size;
       if (opts.section) {
@@ -1791,8 +1791,8 @@ export class Process implements Disposable {
   /**
    * Cheat-Engine-style typed value scan: find all (aligned) little-endian
    * occurrences of `value` in committed memory. Default scans writable
-   * regions only â€” pass `onlyWritable: false` to include read-only data.
-   * Returns `{addr, value}` hits â€” keep them: `nextScan` relative modes
+   * regions only -- pass `onlyWritable: false` to include read-only data.
+   * Returns `{addr, value}` hits -- keep them: `nextScan` relative modes
    * compare against each hit's stored value.
    */
   async scanValue(
@@ -1803,14 +1803,14 @@ export class Process implements Disposable {
     const type = opts.type ?? 'int32';
     if (!VALID_SCAN_TYPES.includes(type))
       throw new TypeError(
-        `invalid scanValue type ${type} â€” use one of ${VALID_SCAN_TYPES.join('/')}`,
+        `invalid scanValue type ${type} -- use one of ${VALID_SCAN_TYPES.join('/')}`,
       );
     const needle = encodeValue(type, value);
     let start = toNum(opts.start);
     let end = toNum(opts.end);
     if (opts.module) {
       const m = this.module(opts.module);
-      if (!m) return []; // module not loaded â€” never silently scan all of VA
+      if (!m) return []; // module not loaded -- never silently scan all of VA
       start = m.base;
       end = m.base + m.size;
     }
@@ -1820,7 +1820,7 @@ export class Process implements Disposable {
       onlyWritable: opts.onlyWritable ?? true,
       alignment: opts.alignment ?? VALUE_WIDTHS[type],
     });
-    // Every hit equals the needle by construction â€” the stored value is the
+    // Every hit equals the needle by construction -- the stored value is the
     // needle itself, decoded once here (cheap; avoids a per-hit decode).
     const decoded = decodeValue(needle, 0, type);
     return addrs.map((addr) => ({ addr, value: decoded }));
@@ -1829,21 +1829,21 @@ export class Process implements Disposable {
   /**
    * Refine a previous scan (CE "next scan"): re-reads each hit's current
    * value and keeps the ones matching `mode`. Returns fresh ScanHits whose
-   * `value` is the NEW reading, so chaining refines (scan â†’ changed â†’
-   * increased â†’ ...) always compares consecutive snapshots like CE does.
+   * `value` is the NEW reading, so chaining refines (scan -> changed ->
+   * increased -> ...) always compares consecutive snapshots like CE does.
    *
    * Modes:
-   *  - `{type:'exact', value}`            â€” current value == value (1e-6 float tol)
-   *  - `{type:'changed'|'unchanged'}`     â€” vs the hit's stored value
-   *  - `{type:'increased'|'decreased'}`   â€” numeric compare vs stored value
-   *  - `{type:'increasedBy'|'decreasedBy', value}` â€” delta compare
-   *  - `{type:'between'|'range', lo, hi}` â€” CE "value between"
+   *  - `{type:'exact', value}` -- current value == value (1e-6 float tol)
+   *  - `{type:'changed'|'unchanged'}` -- vs the hit's stored value
+   *  - `{type:'increased'|'decreased'}` -- numeric compare vs stored value
+   *  - `{type:'increasedBy'|'decreasedBy', value}` -- delta compare
+   *  - `{type:'between'|'range', lo, hi}` -- CE "value between"
    *
    * Bare-address convenience: a plain `bigint[]` or `{addr}`-shaped array is
    * accepted for 'exact'/'between' modes; relative modes REQUIRE the stored
    * value and throw on hits that lack it.
    *
-   * NOTE â€” close() mid-scan: a page whose read fails (incl. the process
+   * NOTE -- close() mid-scan: a page whose read fails (incl. the process
    * handle closing between batches) is silently SKIPPED, so a late close()
    * can yield a partial/empty result instead of an error. Check `handle`
    * after awaiting if that distinction matters.
@@ -1862,7 +1862,7 @@ export class Process implements Disposable {
     const type = opts.type ?? 'int32';
     if (!VALID_SCAN_TYPES.includes(type))
       throw new TypeError(
-        `invalid nextScan type ${type} â€” use one of ${VALID_SCAN_TYPES.join('/')}`,
+        `invalid nextScan type ${type} -- use one of ${VALID_SCAN_TYPES.join('/')}`,
       );
 
     // Normalise: a bare number/bigint mode is the legacy "exact" call shape;
@@ -1887,7 +1887,7 @@ export class Process implements Disposable {
     const width = VALUE_WIDTHS[type];
     const PAGE = 0x1000n;
 
-    // group hits by 4KB page â€” retain each hit's stored value (may be absent
+    // group hits by 4KB page -- retain each hit's stored value (may be absent
     // for bare-address input)
     const byPage = new Map<
       bigint,
@@ -1899,7 +1899,7 @@ export class Process implements Disposable {
       const prev = 'value' in hit ? hit.value : undefined;
       if (needsPrev && prev === undefined)
         throw new TypeError(
-          `nextScan mode '${m.type}' needs ScanHit[] with stored values â€” ` +
+          `nextScan mode '${m.type}' needs ScanHit[] with stored values -- ` +
             `feed it the result of scanValue/nextScan, not bare addresses`,
         );
       const page = addr / PAGE;
@@ -1962,7 +1962,7 @@ export class Process implements Disposable {
           Promise.resolve().then(async () => {
             // Overlap the page read by `width` bytes so a value straddling the
             // page boundary (possible with alignment:1) is still re-checked.
-            // Also capture the readable region's end â€” a hit whose span
+            // Also capture the readable region's end -- a hit whose span
             // crosses the region boundary decodes zero-fill as a false value.
             try {
               const q = this.queryAddress(page * PAGE);
@@ -1983,7 +1983,7 @@ export class Process implements Disposable {
         for (const { hit, prev, off } of slice[j]![1]) {
           if (off + width > buf.length) continue;
           // region-boundary straddle: tail would decode zero-fill as a false
-          // value â€” verify the last byte lives in a readable region.
+          // value -- verify the last byte lives in a readable region.
           if (pageBase + BigInt(off + width) > regionEnd) {
             const qe = this.queryAddress(pageBase + BigInt(off + width - 1));
             if (
@@ -2017,7 +2017,7 @@ export class Process implements Disposable {
    * exit); call the returned function (or close()) to stop.
    *
    * Lifecycle: the timer is `unref()`'d (won't keep the host alive) and holds
-   * only a `WeakRef` to this Process â€” a dropped Process self-clears the
+   * only a `WeakRef` to this Process -- a dropped Process self-clears the
    * interval on the next tick instead of polling a leaked handle forever.
    */
   freeze(
@@ -2030,7 +2030,7 @@ export class Process implements Disposable {
     checkAddr(addr);
     if (!(type in VALUE_WIDTHS)) throw new TypeError(`unknown type ${type}`);
     checkTimeout(intervalMs, 'intervalMs');
-    // Capture only what the timer needs â€” a closure over `this` would keep
+    // Capture only what the timer needs -- a closure over `this` would keep
     // the Process (and its OS handle) alive as long as the interval runs.
     const timers = this.#timers;
     const self = new WeakRef(this);
@@ -2043,19 +2043,19 @@ export class Process implements Disposable {
       if (!p || !p.#handle) {
         stop();
         return;
-      } // Process GC'd or closed â€” self-clear
+      } // Process GC'd or closed -- self-clear
       try {
         native.writeValue(
           p.#handle,
           Number(addr),
           type,
-          // pointer is an 8-byte LE write on x64 â€” needs BigInt like int64/uint64.
+          // pointer is an 8-byte LE write on x64 -- needs BigInt like int64/uint64.
           type === 'int64' || type === 'uint64' || type === 'pointer'
             ? BigInt(value)
             : value,
         );
       } catch {
-        /* closed or unwritable â€” ignore */
+        /* closed or unwritable -- ignore */
       }
     }, intervalMs);
     if (typeof timer.unref === 'function') timer.unref();
@@ -2082,10 +2082,10 @@ export class Process implements Disposable {
   // ---- dll injection ----
   /**
    * Inject `absolutePath` (a DLL) into this process via LoadLibraryW on a
-   * remote thread. Path must be ABSOLUTE and â‰¤32767 chars. Re-opens the
+   * remote thread. Path must be ABSOLUTE and <=32767 chars. Re-opens the
    * process internally with the required rights. Injecting into your own
    * pid works (LoadLibrary in-process). Double-injecting the same DLL
-   * increments its refcount â€” eject once per inject. Throws InjectError on
+   * increments its refcount -- eject once per inject. Throws InjectError on
    * failure.
    */
   injectDll(absolutePath: string, timeoutMs?: number): boolean {
@@ -2094,7 +2094,7 @@ export class Process implements Disposable {
     if (timeoutMs !== undefined) checkTimeout(timeoutMs);
     try {
       const ok = native.injectDll(this.pid, absolutePath, timeoutMs);
-      if (ok) this.refreshModules(); // module table changed â€” drop stale cache
+      if (ok) this.refreshModules(); // module table changed -- drop stale cache
       return ok;
     } catch (e: any) {
       throw new InjectError(e?.message ?? 'unknown', e?.win32code);
@@ -2104,7 +2104,7 @@ export class Process implements Disposable {
   /**
    * Eject a loaded module via FreeLibrary on a remote thread. Accepts a
    * ModuleInfo or an EXACT module basename (case-insensitive, e.g.
-   * 'testdll.dll') â€” substrings are rejected so 'd3d' can't unload
+   * 'testdll.dll') -- substrings are rejected so 'd3d' can't unload
    * 'd3dcompiler_47.dll'. Always re-enumerates first: the module cache would
    * otherwise hand a stale base to FreeLibrary. Throws InjectError on
    * failure / no match.
@@ -2114,7 +2114,7 @@ export class Process implements Disposable {
     let base: number | undefined;
     if (typeof module === 'string') {
       checkStr(module, 'module');
-      this.refreshModules(); // stale cache â†’ wrong base / false "not found"
+      this.refreshModules(); // stale cache -> wrong base / false "not found"
       const want = module.toLowerCase();
       const m = this.#moduleTable().byName.get(want);
       if (!m)
@@ -2127,7 +2127,7 @@ export class Process implements Disposable {
     }
     try {
       const ok = native.ejectDll(this.pid, base);
-      if (ok) this.refreshModules(); // module unloaded â€” drop stale cache
+      if (ok) this.refreshModules(); // module unloaded -- drop stale cache
       return ok;
     } catch (e: any) {
       throw new InjectError(e?.message ?? 'unknown', e?.win32code);
@@ -2141,12 +2141,12 @@ export class Process implements Disposable {
    * (the target may exit or the page may become inaccessible).
    *
    * A throwing `cb` is forwarded to `opts.onError`; the default handler logs
-   * via console.error and keeps the watcher running â€” a user-callback fault
+   * via console.error and keeps the watcher running -- a user-callback fault
    * must not crash the process or spam unhandled rejections. Pass
    * `onError: () => {}` to silence it.
    *
    * Lifecycle: the timer is `unref()`'d (won't keep the host alive) and holds
-   * only a `WeakRef` to this Process â€” a dropped Process self-clears the
+   * only a `WeakRef` to this Process -- a dropped Process self-clears the
    * interval on the next tick instead of polling a leaked handle forever.
    */
   watch(
@@ -2169,7 +2169,7 @@ export class Process implements Disposable {
     } catch {
       /* start uninitialized */
     }
-    // WeakRef + no `this` capture â€” see freeze() for the rationale.
+    // WeakRef + no `this` capture -- see freeze() for the rationale.
     const timers = this.#timers;
     const self = new WeakRef(this);
     const stop = () => {
@@ -2181,7 +2181,7 @@ export class Process implements Disposable {
       if (!p || !p.#handle) {
         stop();
         return;
-      } // Process GC'd or closed â€” self-clear
+      } // Process GC'd or closed -- self-clear
       let cur: number;
       try {
         cur = p.readInt32(addr);
@@ -2206,13 +2206,13 @@ export class Process implements Disposable {
   }
 
   /**
-   * Machine-readable self-description of the attached process — the object an
+   * Machine-readable self-description of the attached process -- the object an
    * agent orients on first. JSON-safe: every address is a `0x`-prefixed hex
    * STRING (bigint doesn't survive JSON.stringify). `rwxRegions` is the
    * interesting-to-agent subset of {@link regions}: committed pages that are
    * writable and/or executable, with the protection as its Win32 constant
    * name. Cost: one module snapshot + one VirtualQueryEx walk + one thread
-   * snapshot (~30ms) — don't call per-frame.
+   * snapshot (~30ms) -- don't call per-frame.
    */
   describe(): ProcessDescribe {
     this.assertOpen();
@@ -2283,7 +2283,7 @@ export class Process implements Disposable {
 
   /**
    * Fluent pointer-chain address. **Canonical form:**
-   * `addr('module', rva, ...offsets)` â€” the module name, then the RVA added
+   * `addr('module', rva, ...offsets)` -- the module name, then the RVA added
    * to its base, then the pointer chain (all-but-last dereference):
    * ```ts
    * proc.addr('game.exe', 0x1F2A3C, 0x10, 0x28, 0x8).readInt32()
@@ -2293,7 +2293,7 @@ export class Process implements Disposable {
    * proc.addr('game.exe+0x1F2A3C', 0x10, 0x28, 0x8)  // CE paste-friendly
    * proc.addr(mod.base + 0x1F2A3Cn, 0x10, 0x28, 0x8) // raw bigint base
    * ```
-   * In the `'mod+rva'` / bigint forms every `chain` offset is a deref hop â€”
+   * In the `'mod+rva'` / bigint forms every `chain` offset is a deref hop --
    * the rva is already in the base. Writing `addr('mod+0x100', 0x100, ...)`
    * (rva repeated as chain[0]) throws `AMBIGUOUS_ADDRESS_EXPR`; pass the
    * numeric base if that deref is truly intended.
@@ -2303,9 +2303,9 @@ export class Process implements Disposable {
   }
 
   /**
-   * Named pointer-chain table â€” a CE-style address list. **Canonical entry
+   * Named pointer-chain table -- a CE-style address list. **Canonical entry
    * form:** `['module', rva, ...offsets]`. `base` may also be a bigint, a
-   * `"module+rva"` string, or a raw address â€” same rules as {@link addr}.
+   * `"module+rva"` string, or a raw address -- same rules as {@link addr}.
    * Returns a typed map of {@link Address} objects, so chains are defined
    * once and read/written by name:
    * ```ts
@@ -2318,7 +2318,7 @@ export class Process implements Disposable {
    * p.health.readInt32();   // 87
    * p.mana.writeInt32(999);
    * ```
-   * Entries resolve lazily â€” nothing touches memory until a `.read`/`.resolve`.
+   * Entries resolve lazily -- nothing touches memory until a `.read`/`.resolve`.
    */
   pointers<
     T extends Record<
@@ -2343,7 +2343,7 @@ export class Process implements Disposable {
 
   /**
    * Typed view over a region. `snapshot()` does ONE `readBuffer` covering the
-   * whole schema and decodes every field locally â€” cheap per-frame read for
+   * whole schema and decodes every field locally -- cheap per-frame read for
    * ESP/aimbot loops. `read(name)`/`write(name, v)` hit live memory.
    */
   entity(addr: number | bigint, schema: EntitySchema): Entity {
@@ -2351,7 +2351,7 @@ export class Process implements Disposable {
   }
 
   /**
-   * Iterate an entity list â€” array-stride (`stride`) or linked-list (`next`).
+   * Iterate an entity list -- array-stride (`stride`) or linked-list (`next`).
    * Yields addresses, or {@link Entity} views when `schema` is given.
    */
   entityList(opts: EntityListOptions): EntityList {
@@ -2360,7 +2360,7 @@ export class Process implements Disposable {
 
   /**
    * Batch-read many typed values. Groups requests by 4KB page and does ONE
-   * `readSafe` per page â€” 10-50Ã— fewer N-API crossings than per-address reads.
+   * `readSafe` per page -- 10-50x fewer N-API crossings than per-address reads.
    * Returns `null` for any address that can't be decoded.
    */
   readMany(
@@ -2380,7 +2380,7 @@ export class Process implements Disposable {
   }
 
   /**
-   * Shallow "who points at this" scan â€” find every aligned location storing
+   * Shallow "who points at this" scan -- find every aligned location storing
    * a pointer to `target` (a lightweight CE pointer-scan). Async.
    */
   findPointersTo(

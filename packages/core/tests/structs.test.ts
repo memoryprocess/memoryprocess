@@ -10,7 +10,7 @@ afterAll(() => {
   victim?.kill();
 });
 
-describe('proc.addr — CE-style mod+rva + chain', () => {
+describe('proc.addr -- CE-style mod+rva + chain', () => {
   test('"module+rva" resolves to the right address', () => {
     using proc = Process.open(victim.pid);
     const mod = proc.module('victim.exe')!;
@@ -42,7 +42,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
     expect(() => proc.addr('nosuch.dll+0x10')).toThrow();
   });
 
-  test('proc.pointers — named chain table, lazy + reusable', () => {
+  test('proc.pointers -- named chain table, lazy + reusable', () => {
     using proc = Process.open(victim.pid);
     const mod = proc.module('victim.exe')!;
     const p = proc.pointers({
@@ -55,7 +55,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
     expect(p.i32.readInt32()).toBe(0x12345678);
     expect(p.counter.readInt32()).toBeGreaterThan(0);
     expect(p.viaChain.resolve()).toBe(victim.addr.g_i32);
-    // reusable — same chain read twice hits live memory again
+    // reusable -- same chain read twice hits live memory again
     p.counter.writeInt32(777);
     expect(p.counter.readInt32()).toBe(777);
   });
@@ -64,7 +64,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
     using proc = Process.open(victim.pid);
     const mod = proc.module('victim.exe')!;
     const rva = Number(victim.addr.g_ppp) - mod.base;
-    // 'mod', rva, chain — equivalent to 'mod+rva' + chain
+    // 'mod', rva, chain -- equivalent to 'mod+rva' + chain
     const a = proc.addr('victim.exe', rva, 0, 0, 0);
     expect(a.resolve()).toBe(victim.addr.g_i32);
     // and the pointers() def form
@@ -76,7 +76,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
     expect(p.chained.resolve()).toBe(victim.addr.g_i32);
   });
 
-  describe('addr() validation — descriptive errors, no silent garbage', () => {
+  describe('addr() validation -- descriptive errors, no silent garbage', () => {
     test.each([
       ['victim.exe+', 'empty rva'],
       ['victim.exe+0x', 'empty hex'],
@@ -114,14 +114,14 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
     test("'mod+rva' + chain[0] is a DEREF offset, not double-rva (documented)", () => {
       using proc = Process.open(victim.pid);
       const mod = proc.module('victim.exe')!;
-      // 'victim.exe+rva(g_ppp)' + [0,0,0] walks g_ppp→g_i32 — the chain
+      // 'victim.exe+rva(g_ppp)' + [0,0,0] walks g_ppp->g_i32 -- the chain
       // offsets are deref hops, they are NOT added to the base again.
       const rva = Number(victim.addr.g_ppp) - mod.base;
       const a = proc.addr(`victim.exe+0x${rva.toString(16)}`, 0, 0, 0);
       expect(a.resolve()).toBe(victim.addr.g_i32);
     });
 
-    describe('ambiguity heuristic — rva repeated as chain[0]', () => {
+    describe('ambiguity heuristic -- rva repeated as chain[0]', () => {
       test("'mod+rva' + chain[0]==rva throws AMBIGUOUS_ADDRESS_EXPR", () => {
         using proc = Process.open(victim.pid);
         const mod = proc.module('victim.exe')!;
@@ -137,7 +137,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
 
       test('rva==0 does NOT trigger (chain[0]=0 is a normal deref)', () => {
         using proc = Process.open(victim.pid);
-        // 'mod+0' embeds rva 0 → heuristic skips; chain[0]=0 derefs base.
+        // 'mod+0' embeds rva 0 -> heuristic skips; chain[0]=0 derefs base.
         // victim base itself isn't a pointer target we control, so just
         // assert construction doesn't throw (resolve may fail on read).
         expect(() => proc.addr('victim.exe+0', 0)).not.toThrow();
@@ -147,7 +147,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
         using proc = Process.open(victim.pid);
         const mod = proc.module('victim.exe')!;
         const rva = Number(victim.addr.g_ppp) - mod.base;
-        // chain[0]=0 ≠ rva → clean construction, correct resolve
+        // chain[0]=0 != rva -> clean construction, correct resolve
         const a = proc.addr(`victim.exe+0x${rva.toString(16)}`, 0, 0, 0);
         expect(a.resolve()).toBe(victim.addr.g_i32);
       });
@@ -156,7 +156,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
         using proc = Process.open(victim.pid);
         const mod = proc.module('victim.exe')!;
         const rva = Number(victim.addr.g_ppp) - mod.base;
-        // numeric base + chain[0]==rva → legal, no heuristic
+        // numeric base + chain[0]==rva -> legal, no heuristic
         const a = proc.addr(BigInt(mod.base) + BigInt(rva), 0, 0, 0);
         expect(a.resolve()).toBe(victim.addr.g_i32);
       });
@@ -174,7 +174,7 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
     });
 
     describe('canonical form is unambiguous', () => {
-      test("['mod', rva, ...chain] ≡ ['mod+rva', ...chain]", () => {
+      test("['mod', rva, ...chain] === ['mod+rva', ...chain]", () => {
         using proc = Process.open(victim.pid);
         const mod = proc.module('victim.exe')!;
         const rva = Number(victim.addr.g_ppp) - mod.base;
@@ -193,8 +193,8 @@ describe('proc.addr — CE-style mod+rva + chain', () => {
   });
 });
 
-describe('Offsets — cs2-dumper + hazedumper + property access', () => {
-  test('cs2-dumper module-keyed rva map → property Address', async () => {
+describe('Offsets -- cs2-dumper + hazedumper + property access', () => {
+  test('cs2-dumper module-keyed rva map -> property Address', async () => {
     using proc = Process.open(victim.pid);
     const mod = proc.module('victim.exe')!;
     const rva = Number(victim.addr.g_i32) - mod.base;
@@ -273,7 +273,7 @@ describe('Offsets — cs2-dumper + hazedumper + property access', () => {
     ['a+0x1+0x2', 'double +'],
     ['mod+xyz', 'bad rva'],
     ['mod+', 'empty rva'],
-  ])('Offsets.load string %j → INVALID_OFFSET_ENTRY (%s)', (s, _w) => {
+  ])('Offsets.load string %j -> INVALID_OFFSET_ENTRY (%s)', (s, _w) => {
     try {
       Offsets.load({ x: s });
       expect.unreachable('should throw');

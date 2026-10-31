@@ -29,23 +29,23 @@ export type FieldType =
   | 'vec4'
   | 'ref';
 
-/** Schema for {@link Entity}: field name → [offset, type]. */
+/** Schema for {@link Entity}: field name -> [offset, type]. */
 export type EntitySchema = Record<string, [number, FieldType]>;
 
 /** Declarative signature/offset entry (hazedumper / cs2-dumper compatible). */
 export interface SigEntry {
-  /** AOB pattern string ("48 8B 05 ? ? ? ?") — omit for a static RVA. */
+  /** AOB pattern string ("48 8B 05 ? ? ? ?") -- omit for a static RVA. */
   pattern?: string;
   /** Module to scan inside (e.g. 'client.dll'). Required for `pattern`. */
   module?: string;
   /**
    * After the hit:
-   * - `relative: true` → `offsets[0]` is the rip-displacement position inside
+   * - `relative: true` -> `offsets[0]` is the rip-displacement position inside
    *   the instruction (default 3); `offsets[1..]` are then walked as a pointer
    *   dereference chain from the resolved address.
-   * - `read` set → `offsets[0]` is where to read the pointer/`u32`/`u64`; the
+   * - `read` set -> `offsets[0]` is where to read the pointer/`u32`/`u64`; the
    *   read value is dereferenced once and `offsets[1..]` walked as a chain.
-   * - neither → `offsets` are walked as a pointer chain starting at the hit.
+   * - neither -> `offsets` are walked as a pointer chain starting at the hit.
    */
   offsets?: number[];
   /** Add to the final result (hazedumper "extra"). */
@@ -58,7 +58,7 @@ export interface SigEntry {
   rva?: number;
 }
 
-/** A signature database — either a flat name→entry map or hazedumper-shaped. */
+/** A signature database -- either a flat name->entry map or hazedumper-shaped. */
 export type OffsetsJson =
   | Record<string, SigEntry | number | string>
   | {
@@ -104,15 +104,15 @@ function readPtr(buf: Buffer, off: number, ptrSize: number): bigint {
 }
 
 /* ------------------------------------------------------------------ */
-/* Address — cached base + fluent offset/deref chain                    */
+/* Address -- cached base + fluent offset/deref chain                    */
 /* ------------------------------------------------------------------ */
 
-/** Strict parse of an unsigned hex/dec literal — rejects '', '0x', 'GG', signs. */
+/** Strict parse of an unsigned hex/dec literal -- rejects '', '0x', 'GG', signs. */
 function parseUint(what: string, s: string): bigint {
   const t = s.trim();
   if (t === '' || /^[-+]/.test(t))
     throw new MemoryProcessError(
-      `invalid ${what}: "${s}" — expected unsigned hex/dec`,
+      `invalid ${what}: "${s}" -- expected unsigned hex/dec`,
       'INVALID_ADDRESS_EXPR',
     );
   let v: bigint;
@@ -120,13 +120,13 @@ function parseUint(what: string, s: string): bigint {
     v = BigInt(t);
   } catch {
     throw new MemoryProcessError(
-      `invalid ${what}: "${s}" — expected unsigned hex/dec`,
+      `invalid ${what}: "${s}" -- expected unsigned hex/dec`,
       'INVALID_ADDRESS_EXPR',
     );
   }
   if (v < 0n)
     throw new MemoryProcessError(
-      `invalid ${what}: "${s}" — must be ≥ 0`,
+      `invalid ${what}: "${s}" -- must be >= 0`,
       'INVALID_ADDRESS_EXPR',
     );
   return v;
@@ -137,7 +137,7 @@ const LOOKS_LIKE_MODULE = /[a-zA-Z]/;
 
 /**
  * Resolve a `"module+rva"` string, a bare numeric string, or a numeric base
- * to `{ base, rvaInString }` — the latter is the rva embedded in a
+ * to `{ base, rvaInString }` -- the latter is the rva embedded in a
  * `'mod+rva'` expression (0n when the form has no `+` or the rva is 0), so
  * the caller can detect the ambiguous `('mod+rva', rva, ...)` overlap.
  * Strict: malformed expressions throw `MemoryProcessError` with code
@@ -150,7 +150,7 @@ function resolveBase(
   if (typeof base !== 'string') {
     if (typeof base === 'number' && !Number.isInteger(base))
       throw new MemoryProcessError(
-        `invalid address base ${base} — must be an integer`,
+        `invalid address base ${base} -- must be an integer`,
         'INVALID_ADDRESS_EXPR',
       );
     return { base: BigInt(base), rvaInString: 0n };
@@ -161,7 +161,7 @@ function resolveBase(
 
   if (plus === -1) {
     if (minus > 0) {
-      // 'mod-rva' is never a valid expression — but the whole string may be a
+      // 'mod-rva' is never a valid expression -- but the whole string may be a
       // legitimate dashed module name ('my-mod.dll'). Report the better error.
       if (!proc.module(s)) {
         throw new MemoryProcessError(
@@ -170,15 +170,15 @@ function resolveBase(
         );
       }
       throw new MemoryProcessError(
-        `invalid address "${s}" — use 'module+rva' ('-' offsets aren't supported in the base expression; put negative offsets in the chain)`,
+        `invalid address "${s}" -- use 'module+rva' ('-' offsets aren't supported in the base expression; put negative offsets in the chain)`,
         'INVALID_ADDRESS_EXPR',
       );
     }
     if (LOOKS_LIKE_MODULE.test(s) && !/^0[xX]/.test(s)) {
-      // bare module name reaching here means it isn't loaded —
+      // bare module name reaching here means it isn't loaded --
       // moduleFor() checks first and diverts to the module+rva path.
       // BUT an all-hex literal like '1a2b' (letters but no dot/extension)
-      // is more likely a bare hex address than a module — prefer that read
+      // is more likely a bare hex address than a module -- prefer that read
       // when it parses and looks like an address; else report missing module.
       if (/^[0-9a-fA-F]+$/.test(s) && /[a-fA-F]/.test(s)) {
         try {
@@ -199,12 +199,12 @@ function resolveBase(
   const rvaStr = s.slice(plus + 1).trim();
   if (modName === '')
     throw new MemoryProcessError(
-      `invalid address "${s}" — missing module before '+'`,
+      `invalid address "${s}" -- missing module before '+'`,
       'INVALID_ADDRESS_EXPR',
     );
   if (rvaStr.includes('+') || rvaStr.includes('-'))
     throw new MemoryProcessError(
-      `invalid address "${s}" — only one '+' allowed ('module+rva')`,
+      `invalid address "${s}" -- only one '+' allowed ('module+rva')`,
       'INVALID_ADDRESS_EXPR',
     );
   const mod = proc.module(modName);
@@ -218,9 +218,9 @@ function resolveBase(
 }
 
 /**
- * Bare module name (no `+`) resolving to a loaded module → its ModuleInfo,
+ * Bare module name (no `+`) resolving to a loaded module -> its ModuleInfo,
  * else undefined. Cheap regex pre-filter avoids a Toolhelp snapshot for
- * numeric-looking strings. Caller reuses the result — one lookup per Address.
+ * numeric-looking strings. Caller reuses the result -- one lookup per Address.
  */
 function moduleFor(
   proc: Process,
@@ -237,7 +237,7 @@ function moduleFor(
  * A lazily-resolved pointer-chain address. `add()`/`deref()` build the chain;
  * `resolve()`/`ptr()` walk it once via {@link Process.resolvePointer}.
  *
- * `deref()` is a readability marker only — `resolvePointer` already dereferences
+ * `deref()` is a readability marker only -- `resolvePointer` already dereferences
  * every offset except the last. `ptr()` returns the final resolved address;
  * `readPointer()` reads the 8-byte value AT that address (one extra hop).
  */
@@ -249,15 +249,15 @@ export class Address {
    * `base` may be:
    * - a bigint/number virtual address,
    * - a `"module+rva"` string (`'client.dll+0xDEB99C'`), or
-   * - a **bare module name** (`'client.dll'`) — then `chain[0]` is the RVA
+   * - a **bare module name** (`'client.dll'`) -- then `chain[0]` is the RVA
    *   (added to the module base, not dereferenced) and `chain[1:]` is the
-   *   pointer chain. So `new Address(p, 'game.exe', [0x1F2A3C, 0x10])` ≡
+   *   pointer chain. So `new Address(p, 'game.exe', [0x1F2A3C, 0x10])` ===
    *   `new Address(p, 'game.exe+0x1F2A3C', [0x10])`.
    *
    * `chain` offsets are walked like {@link Process.resolvePointer}: every
    * offset except the last dereferences the pointer, the last is added.
    *
-   * **Canonical form** is `('mod', rva, ...chain)` — every number has exactly
+   * **Canonical form** is `('mod', rva, ...chain)` -- every number has exactly
    * one meaning. When `base` already carries a `+rva`, `chain[0]` is a deref
    * hop like any other; if it *equals* the embedded rva (and rva > 0) that's
    * almost always a doubled-rva bug, so it throws `AMBIGUOUS_ADDRESS_EXPR`.
@@ -274,7 +274,7 @@ export class Address {
       const [rva, ...rest] = chain;
       if (rva !== undefined && (!Number.isInteger(rva) || rva < 0))
         throw new MemoryProcessError(
-          `invalid rva ${rva} for module '${base}' — must be a finite integer ≥ 0`,
+          `invalid rva ${rva} for module '${base}' -- must be a finite integer >= 0`,
           'INVALID_ADDRESS_EXPR',
         );
       this.base = BigInt(mod.base) + BigInt(rva ?? 0);
@@ -286,7 +286,7 @@ export class Address {
     const c0 = chain[0];
     if (chain.length > 0 && c0 !== undefined && !Number.isInteger(c0))
       throw new MemoryProcessError(
-        `invalid chain offset ${c0} — chain offsets must be integers`,
+        `invalid chain offset ${c0} -- chain offsets must be integers`,
         'INVALID_ADDRESS_EXPR',
       );
     if (
@@ -296,7 +296,7 @@ export class Address {
     ) {
       throw new MemoryProcessError(
         `ambiguous expression "${base}" + chain[0]=${chain[0]}: the rva ` +
-          `appears twice — once in the string and again as the first chain ` +
+          `appears twice -- once in the string and again as the first chain ` +
           `offset (which dereferences, it does NOT re-add). ` +
           `Did you mean '${(base as string).split('+')[0]!.trim()}', ` +
           `${chain[0]}, ...chain (bare-module form)? If a deref-by-${chain[0]} ` +
@@ -392,7 +392,7 @@ export class Address {
 }
 
 /* ------------------------------------------------------------------ */
-/* Offsets — declarative pattern→resolved-address map                    */
+/* Offsets -- declarative pattern->resolved-address map                    */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -400,14 +400,14 @@ export class Address {
  *
  * Supports the two layouts real dumper tools emit:
  * - **cs2/GH-dumper**: `{ "client.dll": { "dwEntityList": 0xDEB99C, ... } }`
- *   — module-keyed RVA maps (each value is an offset from the module base).
+ * -- module-keyed RVA maps (each value is an offset from the module base).
  * - **hazedumper**: `{ signatures: { name: {module, pattern, offsets, extra,
- *   relative, read, rva} }, netvars: { name: offset } }` — AOB-scan entries.
+ *   relative, read, rva} }, netvars: { name: offset } }` -- AOB-scan entries.
  * - Flat `{ name: SigEntry | number | "mod+rva" | pattern }` also accepted.
  *
  * After `await off.ready()`, entries are exposed as properties:
  * `off.dwLocalPlayer` (an {@link Address}) and `off.netvars.m_iHealth`
- * (a field offset number) — plus `off.get(name)`/`off.resolve(name)`.
+ * (a field offset number) -- plus `off.get(name)`/`off.resolve(name)`.
  */
 export class Offsets {
   private entries = new Map<string, SigEntry | number>();
@@ -415,9 +415,9 @@ export class Offsets {
   private moduleRvps = new Map<string, Map<string, number>>();
   private cache = new Map<string, bigint>();
   private proc?: Process;
-  /** netvars / plain field offsets (name → offset number) */
+  /** netvars / plain field offsets (name -> offset number) */
   readonly netvars: Record<string, number> = {};
-  /** Entries that failed to resolve in the last `ready()` — name → error. */
+  /** Entries that failed to resolve in the last `ready()` -- name -> error. */
   readonly failures: Record<string, Error> = {};
   private resolved = false;
   /** Entry names populated as own properties by ready() (removed on re-bind). */
@@ -428,7 +428,7 @@ export class Offsets {
   /**
    * Parse an offsets config. Detects the cs2-dumper module-keyed layout
    * (`{ "module.dll": { name: rva } }`) vs hazedumper (`signatures`/`netvars`)
-   * vs a flat name→entry map. Bind to `proc` via {@link of} or `.bind()`.
+   * vs a flat name->entry map. Bind to `proc` via {@link of} or `.bind()`.
    */
   static load(json: string | OffsetsJson): Offsets {
     const raw = (typeof json === 'string' ? JSON.parse(json) : json) as Record<
@@ -438,7 +438,7 @@ export class Offsets {
     const db = new Offsets();
 
     // cs2-dumper style: top-level keys that are modules whose value is a
-    // {name: rva} map. Members are filtered individually — a map that also
+    // {name: rva} map. Members are filtered individually -- a map that also
     // holds a non-number key (a nested table, a comment field) doesn't lose
     // the whole module's rvas, it just skips that member.
     const isModuleMap = (v: unknown): v is Record<string, unknown> =>
@@ -453,7 +453,7 @@ export class Offsets {
       // the same name (m9 was one-direction-only). Throw on any collision.
       if (db.entries.has(name))
         throw new MemoryProcessError(
-          `offset name "${name}" defined more than once — rename to disambiguate`,
+          `offset name "${name}" defined more than once -- rename to disambiguate`,
           'DUPLICATE_OFFSET_NAME',
         );
       if (typeof e === 'number') {
@@ -463,11 +463,11 @@ export class Offsets {
       if (typeof e === 'string') {
         const s = e.trim();
         if (s.includes('+')) {
-          // 'module+rva' — exactly one '+', both sides required.
+          // 'module+rva' -- exactly one '+', both sides required.
           const parts = s.split('+');
           if (parts.length !== 2 || !parts[0]!.trim() || !parts[1]!.trim())
             throw new MemoryProcessError(
-              `invalid offset entry "${name}": "${e}" — expected 'module+rva'`,
+              `invalid offset entry "${name}": "${e}" -- expected 'module+rva'`,
               'INVALID_OFFSET_ENTRY',
             );
           let rva: bigint;
@@ -475,7 +475,7 @@ export class Offsets {
             rva = BigInt(parts[1]!.trim());
           } catch {
             throw new MemoryProcessError(
-              `invalid offset entry "${name}": bad rva "${parts[1]}" — expected unsigned hex/dec`,
+              `invalid offset entry "${name}": bad rva "${parts[1]}" -- expected unsigned hex/dec`,
               'INVALID_OFFSET_ENTRY',
             );
           }
@@ -491,12 +491,12 @@ export class Offsets {
           return;
         }
         if (s.includes('-') && !/^[0-9a-fA-F? ]+$/.test(s))
-          // dashed non-pattern ('mod-0x10') — '-' is never legal in an entry
+          // dashed non-pattern ('mod-0x10') -- '-' is never legal in an entry
           throw new MemoryProcessError(
-            `invalid offset entry "${name}": "${e}" — use 'module+rva' ('-' is not supported)`,
+            `invalid offset entry "${name}": "${e}" -- use 'module+rva' ('-' is not supported)`,
             'INVALID_OFFSET_ENTRY',
           );
-        // AOB pattern — scanUnique validates the bytes at resolve time.
+        // AOB pattern -- scanUnique validates the bytes at resolve time.
         db.entries.set(name, { pattern: e });
         return;
       }
@@ -520,7 +520,7 @@ export class Offsets {
           m.set(name, rva);
           if (db.entries.has(name))
             throw new MemoryProcessError(
-              `offset name "${name}" appears in multiple module maps — rename to disambiguate`,
+              `offset name "${name}" appears in multiple module maps -- rename to disambiguate`,
               'DUPLICATE_OFFSET_NAME',
             );
           db.entries.set(name, { module: k, rva });
@@ -551,7 +551,7 @@ export class Offsets {
         if (!db.entries.has(k)) add(k, v as SigEntry | number | string);
       }
     }
-    // netvars → plain field offsets
+    // netvars -> plain field offsets
     for (const [k, v] of Object.entries(nets ?? {})) {
       if (typeof v === 'number') db.netvars[k] = v;
       else if (v && typeof v === 'object' && 'offset' in (v as SigEntry))
@@ -570,7 +570,7 @@ export class Offsets {
     this.proc = proc;
     this.cache.clear();
     this.resolved = false;
-    // Drop stale Address properties bound to the PREVIOUS proc — leaving them
+    // Drop stale Address properties bound to the PREVIOUS proc -- leaving them
     // would read from the wrong process while resolve() uses the new one.
     for (const name of this.populated)
       delete (this as Record<string, unknown>)[name];
@@ -581,21 +581,21 @@ export class Offsets {
 
   /**
    * Resolve + cache every entry, then expose them as properties:
-   * `off.dwLocalPlayer` → `Address`, `off.netvars.*` → number.
+   * `off.dwLocalPlayer` -> `Address`, `off.netvars.*` -> number.
    * Call once after construction/bind. Idempotent. Requires a bound proc;
    * entry names colliding with Offsets members throw rather than clobber them.
    */
   async ready(): Promise<this> {
     if (!this.proc)
       throw new MemoryProcessError(
-        'Offsets is not bound to a Process — call .bind(proc) or Offsets.of()',
+        'Offsets is not bound to a Process -- call .bind(proc) or Offsets.of()',
         'NOT_BOUND',
       );
     if (this.resolved) return this;
     for (const name of this.keys()) {
       if (name in this)
         throw new MemoryProcessError(
-          `offset name "${name}" collides with a reserved Offsets member — rename it in the database`,
+          `offset name "${name}" collides with a reserved Offsets member -- rename it in the database`,
           'RESERVED_OFFSET_NAME',
         );
     }
@@ -605,7 +605,7 @@ export class Offsets {
         (this as Record<string, unknown>)[name] = new Address(this.proc, addr);
         this.populated.add(name);
       } catch (e) {
-        // record — an unresolvable entry leaves `off[name]` undefined and the
+        // record -- an unresolvable entry leaves `off[name]` undefined and the
         // error discoverable via `off.failures`, rather than vanishing silently
         // or aborting the whole ready().
         this.failures[name] = e instanceof Error ? e : new Error(String(e));
@@ -630,7 +630,7 @@ export class Offsets {
     if (hit !== undefined) return hit;
     if (!this.proc)
       throw new MemoryProcessError(
-        'Offsets is not bound to a Process — call .bind(proc) or Offsets.of()',
+        'Offsets is not bound to a Process -- call .bind(proc) or Offsets.of()',
         'NOT_BOUND',
       );
 
@@ -667,7 +667,7 @@ export class Offsets {
     return new Address(this.proc!, await this.resolve(name));
   }
 
-  /** Resolve many names at once into `{name → addr}`. */
+  /** Resolve many names at once into `{name -> addr}`. */
   async resolveAll(names?: string[]): Promise<Record<string, bigint>> {
     const out: Record<string, bigint> = {};
     const want = names ?? this.keys();
@@ -693,12 +693,12 @@ export class Offsets {
 
     const offs = e.offsets ?? [];
     const extra = BigInt(e.extra ?? 0);
-    // Every chain offset must be an integer — a float in the sig config
+    // Every chain offset must be an integer -- a float in the sig config
     // surfaces as a cryptic BigInt RangeError otherwise (m11).
     const step = (a: bigint, off: number): bigint => {
       if (!Number.isInteger(off))
         throw new MemoryProcessError(
-          `invalid offset ${off} in sig chain — offsets must be integers`,
+          `invalid offset ${off} in sig chain -- offsets must be integers`,
           'INVALID_OFFSET_ENTRY',
         );
       return proc.readPointer(a) + BigInt(off);
@@ -732,7 +732,7 @@ export class Offsets {
 }
 
 /* ------------------------------------------------------------------ */
-/* Entity — typed view over a region                                    */
+/* Entity -- typed view over a region                                    */
 /* ------------------------------------------------------------------ */
 
 interface CompiledField {
@@ -744,7 +744,7 @@ interface CompiledField {
 
 /**
  * Cap on the schema span (maxOffset+width). snapshot() reads the WHOLE span
- * in one readBuffer — a pathologically sparse schema
+ * in one readBuffer -- a pathologically sparse schema
  * (`{a:[0], b:[0x4000000]}`) would issue a single enormous RPM. 64KiB
  * already covers real game structs; wider spans should use readMany().
  */
@@ -766,7 +766,7 @@ function compileSchema(
   }
   if (size > MAX_SCHEMA_SPAN)
     throw new InvalidSchemaError(
-      `schema span too large (${size} bytes > ${MAX_SCHEMA_SPAN}) — ` +
+      `schema span too large (${size} bytes > ${MAX_SCHEMA_SPAN}) -- ` +
         `snapshot() would read the whole span in one RPM; use readMany() ` +
         `or split the schema`,
     );
@@ -777,12 +777,12 @@ function stringWidth(type: FieldType, prefix: string, mult: number): number {
   const raw = type.slice(prefix.length);
   if (!/^\d+$/.test(raw))
     throw new TypeError(
-      `invalid ${prefix} width in field type "${type}" — expected a positive integer`,
+      `invalid ${prefix} width in field type "${type}" -- expected a positive integer`,
     );
   const n = Number.parseInt(raw, 10);
   if (n <= 0)
     throw new TypeError(
-      `invalid ${prefix} width in field type "${type}" — must be > 0`,
+      `invalid ${prefix} width in field type "${type}" -- must be > 0`,
     );
   return n * mult;
 }
@@ -847,7 +847,7 @@ function decodeField(
 
 /**
  * A typed, `readRegion`-backed view over an entity in remote memory.
- * NOTE: `read(name)` costs ONE RPM per call — in hot loops prefer
+ * NOTE: `read(name)` costs ONE RPM per call -- in hot loops prefer
  * {@link Entity.snapshot} (one readBuffer for all fields) over
  * `e.read('x'); e.read('y'); e.read('z')` (three RPMs).
  */
@@ -869,7 +869,7 @@ export class Entity {
 
   /**
    * ONE `readBuffer` covering the whole schema; all fields decoded locally.
-   * Refreshes every call — cheap per-frame snapshot.
+   * Refreshes every call -- cheap per-frame snapshot.
    */
   snapshot<T = Record<string, unknown>>(): T {
     const buf = this.proc.readBuffer(this.addr, this.size);
@@ -920,7 +920,7 @@ export class Entity {
     if (f.type === 'float') buf.writeFloatLE(Number(value));
     else if (f.type === 'double') buf.writeDoubleLE(Number(value));
     else {
-      // int32/uint32 — reject out-of-range rather than silently wrapping
+      // int32/uint32 -- reject out-of-range rather than silently wrapping
       // (>>>0 turns -1 into 0xFFFFFFFF, 0x1_0000_0001 into 1).
       const n = Number(value);
       if (!Number.isInteger(n))
@@ -940,7 +940,7 @@ export class Entity {
 }
 
 /* ------------------------------------------------------------------ */
-/* EntityList — array-stride or linked-list iteration                   */
+/* EntityList -- array-stride or linked-list iteration                   */
 /* ------------------------------------------------------------------ */
 
 export interface EntityListOptions {
@@ -953,14 +953,14 @@ export interface EntityListOptions {
   next?: number;
   /** Array mode: byte stride between elements. */
   stride?: number;
-  /** Max elements (default 4096 — safety cap). */
+  /** Max elements (default 4096 -- safety cap). */
   max?: number;
   /** When set, yields {@link Entity} views instead of raw addresses. */
   schema?: EntitySchema;
 }
 
 export class EntityList implements Iterable<bigint | Entity> {
-  /** Safety cap on `max` — prevents accidental OOM/hang in toArray(). */
+  /** Safety cap on `max` -- prevents accidental OOM/hang in toArray(). */
   static readonly MAX_ELEMENTS = 1_000_000;
 
   constructor(
@@ -996,7 +996,7 @@ export class EntityList implements Iterable<bigint | Entity> {
       return;
     }
 
-    // Linked: first is the address of the head pointer. Track visited nodes —
+    // Linked: first is the address of the head pointer. Track visited nodes --
     // a malformed `next` chain that loops back on itself would otherwise yield
     // duplicates until `max` is hit (bounded, but wasteful and wrong).
     const visited = new Set<bigint>();
@@ -1031,7 +1031,7 @@ export class EntityList implements Iterable<bigint | Entity> {
 
 /**
  * Batch-read many typed values. Groups requests by 4KB page and does ONE
- * `readSafe` per page — 10-50× fewer N-API crossings for ESP-style loops.
+ * `readSafe` per page -- 10-50x fewer N-API crossings for ESP-style loops.
  * Returns `null` for any address that can't be decoded.
  */
 export function readMany(
@@ -1065,13 +1065,13 @@ export function readMany(
   }
   const MEM_COMMIT = 0x1000;
   const UNREADABLE = 0x01 | 0x100; // PAGE_NOACCESS | PAGE_GUARD
-  // R/RW/RX/RWX/EXECUTE_READ/EXECUTE_READWRITE — PAGE_EXECUTE (0x10) is
+  // R/RW/RX/RWX/EXECUTE_READ/EXECUTE_READWRITE -- PAGE_EXECUTE (0x10) is
   // deliberately excluded: it's rare in user-mode and ReadProcessMemory on
   // execute-only pages is inconsistent, so readMany returns null there
   // (where readBuffer would attempt the read and fail differently).
   const readableMask = 0x02 | 0x04 | 0x08 | 0x20 | 0x40 | 0x80;
   for (const [page, list] of byPage) {
-    // readSafe zero-fills inaccessible pages — it never signals "bad", so
+    // readSafe zero-fills inaccessible pages -- it never signals "bad", so
     // gate on queryAddress to distinguish real 0x00000000 from unmapped.
     const q = proc.queryAddress(page * PAGE);
     if (
@@ -1088,7 +1088,7 @@ export function readMany(
     } catch {
       continue;
     }
-    // The readable region containing page start ends at regionEnd — a request
+    // The readable region containing page start ends at regionEnd -- a request
     // whose span crosses it reads zero-fill for its tail (regions are
     // page-granular but can END mid-4KB-page if a smaller region is followed
     // by unmapped/NOACCESS space).
@@ -1097,7 +1097,7 @@ export function readMany(
       if (off + width > buf.length) continue;
       const reqEnd = page * PAGE + BigInt(off + width);
       if (reqEnd > regionEnd) {
-        // crosses the region boundary — tail must live in a readable region too
+        // crosses the region boundary -- tail must live in a readable region too
         const qe = proc.queryAddress(reqEnd - 1n);
         if (
           !qe ||
@@ -1105,7 +1105,7 @@ export function readMany(
           (qe.protection & UNREADABLE) !== 0 ||
           (qe.protection & 0xff & readableMask) === 0
         )
-          continue; // straddle into unreadable region → null, not a false 0
+          continue; // straddle into unreadable region -> null, not a false 0
       }
       try {
         out[idx] =
@@ -1122,7 +1122,7 @@ export function readMany(
 
 /**
  * Find all aligned locations whose stored pointer equals `target`.
- * `scanValue` has no `'pointer'` type — encodes the needle as `uint64`
+ * `scanValue` has no `'pointer'` type -- encodes the needle as `uint64`
  * (8-byte LE) or `uint32` on WoW64 targets. Set `onlyWritable:false` to
  * include `.rdata` pointers.
  */

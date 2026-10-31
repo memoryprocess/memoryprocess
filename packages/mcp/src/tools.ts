@@ -7,7 +7,7 @@
  *
  * Wire format follows docs/json-conventions.md:
  *  - every result is `{ok:true,data} | {ok:false,error:{code,message,win32code?}}`
- *  - bigints (addresses, pointers, 64-bit values) -> '0x…' strings
+ *  - bigints (addresses, pointers, 64-bit values) -> '0x...' strings
  *  - Buffers -> lowercase hex strings
  *  - errors carry the typed `.code` from @memoryprocess/core when available
  */
@@ -95,8 +95,8 @@ function errorEnvelope(e: unknown): ToolResult {
 // ---------------------------------------------------------------------------
 
 /**
- * Parse an address argument: `0x…` hex string, decimal string, or
- * `"module+rva"` (resolved against the session's module table — the rva is
+ * Parse an address argument: `0x...` hex string, decimal string, or
+ * `"module+rva"` (resolved against the session's module table -- the rva is
  * optional). Returns the absolute address as bigint.
  */
 function parseAddress(proc: Process, v: unknown, name = 'addr'): bigint {
@@ -545,7 +545,7 @@ const sessionArg = {
 };
 const addrArg = z
   .union([z.string(), z.number()])
-  .describe('address: "0x…" hex, decimal, or "module+rva"');
+  .describe('address: "0x..." hex, decimal, or "module+rva"');
 const typeArg = z
   .string()
   .describe('i8 u8 i16 u16 i32 u32 i64 u64 f32 f64 ptr str wstr bytes[:N]');
@@ -626,7 +626,7 @@ const toolDefs: Record<string, ToolDef> = {
 
   mem_write: {
     description:
-      'Write a typed value (journaled — reversible via mem_undo). dryRun:true returns {addr,current,would,bytes} WITHOUT writing.',
+      'Write a typed value (journaled -- reversible via mem_undo). dryRun:true returns {addr,current,would,bytes} WITHOUT writing.',
     schema: {
       ...sessionArg,
       addr: addrArg,
@@ -827,7 +827,7 @@ const toolDefs: Record<string, ToolDef> = {
 
   mem_regions: {
     description:
-      "VirtualQueryEx map of the target's memory regions: [{base,size,protect,state,type}] — base/size are hex, protect/state/type are hex flag values. writableOnly/executableOnly filter on protection.",
+      "VirtualQueryEx map of the target's memory regions: [{base,size,protect,state,type}] -- base/size are hex, protect/state/type are hex flag values. writableOnly/executableOnly filter on protection.",
     schema: {
       ...sessionArg,
       writableOnly: z
@@ -850,7 +850,7 @@ const toolDefs: Record<string, ToolDef> = {
         regions = regions.filter((r) => (r.protection & EXECUTABLE) !== 0);
       return {
         count: regions.length,
-        // getRegions only walks MEM_COMMIT pages — state is always 0x1000.
+        // getRegions only walks MEM_COMMIT pages -- state is always 0x1000.
         regions: regions.map((r) => ({
           base: hex(r.baseAddress),
           size: hex(r.size),
@@ -968,7 +968,7 @@ const toolDefs: Record<string, ToolDef> = {
         type === 'int16' ||
         type === 'uint16'
       ) {
-        // proc.freeze() only supports the core VALUE_WIDTHS types — narrow ints
+        // proc.freeze() only supports the core VALUE_WIDTHS types -- narrow ints
         // tick via writeUInt8/16 (which mask to width, so negative i8 works).
         const v = Number(parseNumeric(a.value, false));
         const write =
@@ -979,7 +979,7 @@ const toolDefs: Record<string, ToolDef> = {
           try {
             write();
           } catch {
-            /* closed or unwritable — ignore */
+            /* closed or unwritable -- ignore */
           }
         }, ms);
         if (typeof timer.unref === 'function') timer.unref();
@@ -1007,7 +1007,7 @@ const toolDefs: Record<string, ToolDef> = {
 
   mem_undo: {
     description:
-      'Revert the last n journaled writes (default 1), most-recent first — the self-correction primitive.',
+      'Revert the last n journaled writes (default 1), most-recent first -- the self-correction primitive.',
     schema: {
       ...sessionArg,
       n: z.number().int().positive().optional(),
@@ -1021,14 +1021,14 @@ const toolDefs: Record<string, ToolDef> = {
 
   mem_journal: {
     description:
-      'Snapshot of the write journal for this session: [{index,addr,bytes|null}] — bytes is the pre-write hex that undo() restores.',
+      'Snapshot of the write journal for this session: [{index,addr,bytes|null}] -- bytes is the pre-write hex that undo() restores.',
     schema: sessionArg,
     handler: (s, a) => s.get(a.session).writeLog,
   },
 
   eval_js: {
     description:
-      'Escape hatch: run JS with the bound Process in scope as `proc`. Code is wrapped in an async body — use `return` for a result, `await` is allowed.',
+      'Escape hatch: run JS with the bound Process in scope as `proc`. Code is wrapped in an async body -- use `return` for a result, `await` is allowed.',
     schema: {
       ...sessionArg,
       code: z.string().describe('JS body; `proc` is the open Process'),
