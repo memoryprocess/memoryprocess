@@ -11,7 +11,9 @@
     ".": "./dist/server.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "os": [
     "win32"

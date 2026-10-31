@@ -15,7 +15,10 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "src",
+    "LICENSE",
+    "README.md"
   ],
   "os": [
     "win32"
@@ -31,6 +34,9 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "clean": "node scripts/clean.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "repository": {
     "type": "git",
