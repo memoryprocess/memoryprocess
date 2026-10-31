@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.0](https://github.com/memoryprocess/memoryprocess/compare/cli@0.1.0-beta.0...cli@1.0.0) (2026-10-31)
+
+### Bug Fixes
+
+- **cli:** help flags print usage; fix package.json mojibake ([#85](https://github.com/memoryprocess/memoryprocess/issues/85)) ([1daf0c5](https://github.com/memoryprocess/memoryprocess/commit/1daf0c5b31f66fbca48a1787254e02004ff89c5c))
+
 ## [0.1.0-beta.0](https://github.com/memoryprocess/memoryprocess/compare/cli@0.0.3-beta.9...cli@0.1.0-beta.0) (2026-10-31)
 
 ### Bug Fixes
