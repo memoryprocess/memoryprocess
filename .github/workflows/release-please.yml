@@ -65,6 +65,17 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "build failed for $pkg" }
             Pop-Location
           }
+      # bindings also ships per-Node-ABI prebuilds (prebuildify). Run it here
+      # in the publish step -- `bun publish` does not pick up node-gyp from the
+      # PATH the way npm does, so a `prepublishOnly` script would fail with
+      # 'node-gyp.cmd is not recognized'. Building the prebuilds explicitly
+      # keeps the tarball contents identical to the npm-publish path.
+      - name: prebuild bindings (N-API ABIs)
+        working-directory: packages/bindings
+        shell: pwsh
+        run: |
+          bun run prebuild:all
+          if ($LASTEXITCODE -ne 0) { throw "prebuild failed" }
       - name: resolve release tag per package
         id: tags
         shell: pwsh
