@@ -219,8 +219,8 @@ private:
 Napi::Value ScanAsync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   // scan(pid, pattern[, {start,end,onlyReadable}]) -> Promise<bigint[]>
-  if (info.Length() < 2) {
-    Napi::TypeError::New(env, "expected (pid, pattern[, opts])").ThrowAsJavaScriptException();
+  if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsString()) {
+    Napi::TypeError::New(env, "expected (pid:number, pattern:string[, opts])").ThrowAsJavaScriptException();
     return env.Null();
   }
   DWORD pid = info[0].As<Napi::Number>().Uint32Value();
