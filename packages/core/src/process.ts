@@ -542,14 +542,7 @@ export class Process implements Disposable {
   /** Read a flat struct by a shape of {name: [offset, type]}. */
   readStruct<
     T extends Record<string, [number, 'int32' | 'uint32' | 'float' | 'double']>,
-  >(
-    addr: number | bigint,
-    shape: T,
-  ): {
-    [K in keyof T]: T[K][1] extends 'int64' | 'uint64' | 'pointer'
-      ? bigint
-      : number;
-  } {
+  >(addr: number | bigint, shape: T): { [K in keyof T]: number } {
     const out: Record<string, number | bigint> = {};
     for (const [k, [off, type]] of Object.entries(shape)) {
       out[k] = this.readValueAt(Number(addr) + off, type);
@@ -568,8 +561,14 @@ export class Process implements Disposable {
     }
   }
 
-  /** Follow a pointer chain: read pointer at `base`, then apply each offset. */
+  /**
+   * Follow a pointer chain: read pointer at `base`, then apply each offset.
+   * An empty `offsets` array returns `base` itself -- parity with
+   * {@link Address.resolve} on an empty chain (no base deref).
+   */
   resolvePointer(base: number | bigint, offsets: readonly number[]): bigint {
+    checkAddr(base, 'base');
+    if (offsets.length === 0) return BigInt(base);
     let addr = this.readPointer(base);
     for (let i = 0; i < offsets.length - 1; i++) {
       addr = this.readPointer(addr + BigInt(offsets[i]!));
@@ -671,9 +670,18 @@ export class Process implements Disposable {
       throw new TypeError('data must be a Buffer or Uint8Array');
     const buf = Buffer.from(data);
     if (opts?.dryRun) return this.#previewWrite(addr, buf);
-    this.#recordWrite(addr, buf.length);
-    const ok = native.writeBuffer(this.#handle, Number(addr), buf);
-    if (!ok) throw new WriteError(addr);
+    const ji = this.#recordWrite(addr, buf.length);
+    let ok: boolean;
+    try {
+      ok = native.writeBuffer(this.#handle, Number(addr), buf);
+    } catch (e) {
+      this.#unrecordWrite(ji); // never happened -- don't journal it (M8)
+      throw e;
+    }
+    if (!ok) {
+      this.#unrecordWrite(ji);
+      throw new WriteError(addr);
+    }
     return ok;
   }
 
@@ -696,8 +704,11 @@ export class Process implements Disposable {
    * Capture the pre-write bytes at `addr` into `#writeLog` so {@link undo}
    * can restore them. A failed snapshot records `bytes:null` -- that write is
    * journaled but skipped by undo (can't restore what was never read).
+   * Returns the entry's index so a FAILED write can retract it via
+   * {@link #unrecordWrite} -- journaling a write that never landed would make
+   * a later undo() "revert" bytes that were never changed (M8).
    */
-  #recordWrite(addr: number | bigint, len: number): void {
+  #recordWrite(addr: number | bigint, len: number): number {
     let bytes: Buffer | null;
     try {
       bytes = this.readBuffer(addr, len);
@@ -706,6 +717,12 @@ export class Process implements Disposable {
     }
     this.#writeLog.push({ addr: BigInt(addr), bytes });
     if (this.#writeLog.length > Process.#WRITE_LOG_CAP) this.#writeLog.shift();
+    return this.#writeLog.length - 1;
+  }
+
+  /** Remove the journal entry at `idx` (the write it was for failed). */
+  #unrecordWrite(idx: number): void {
+    if (idx >= 0 && idx < this.#writeLog.length) this.#writeLog.splice(idx, 1);
   }
 
   /**
@@ -763,9 +780,18 @@ export class Process implements Disposable {
     checkAddr(addr);
     const would = encodeValue(type as WriteValueType, v);
     if (opts?.dryRun) return this.#previewWrite(addr, would);
-    this.#recordWrite(addr, would.length);
-    const ok = native.writeValue(this.#handle, Number(addr), type, v);
-    if (!ok) throw new WriteError(addr);
+    const ji = this.#recordWrite(addr, would.length);
+    let ok: boolean;
+    try {
+      ok = native.writeValue(this.#handle, Number(addr), type, v);
+    } catch (e) {
+      this.#unrecordWrite(ji); // never happened -- don't journal it (M8)
+      throw e;
+    }
+    if (!ok) {
+      this.#unrecordWrite(ji);
+      throw new WriteError(addr);
+    }
     return ok;
   }
 
@@ -867,20 +893,33 @@ export class Process implements Disposable {
     opts?: WriteOptions,
   ): boolean | WritePreview {
     this.assertOpen();
-    const buf = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    checkAddr(addr);
+    // Same contract as writeBuffer: a non-Uint8Array would otherwise coerce
+    // through Buffer.from (string -> utf8, number -> uninitialized bytes) and
+    // a bad addr would write at 0 (M4).
+    if (!(data instanceof Uint8Array))
+      throw new TypeError('data must be a Buffer or Uint8Array');
+    const buf = Buffer.from(data);
     if (opts?.dryRun) return this.#previewWrite(addr, buf);
-    this.#recordWrite(addr, buf.length);
-    const r = native.writeProtectedMemory(
-      this.#handle,
-      Number(addr),
-      buf,
-      Protection.PAGE_EXECUTE_READWRITE,
-    );
+    const ji = this.#recordWrite(addr, buf.length);
+    let r: { ok: boolean; restored: boolean };
+    try {
+      r = native.writeProtectedMemory(
+        this.#handle,
+        Number(addr),
+        buf,
+        Protection.PAGE_EXECUTE_READWRITE,
+      );
+    } catch (e) {
+      this.#unrecordWrite(ji); // never happened -- don't journal it (M8)
+      throw e;
+    }
     if (!r.restored) {
       console.warn(
         `memoryprocess: failed to restore protection at 0x${BigInt(addr).toString(16)} -- part of the span left RWX`,
       );
     }
+    if (!r.ok) this.#unrecordWrite(ji); // never happened -- don't journal it (M8)
     return r.ok;
   }
   /** NOP `len` bytes at `addr` (0x90). */
@@ -931,6 +970,11 @@ export class Process implements Disposable {
     this.assertOpen();
     checkAddr(addr);
     checkNumber(count, 'count');
+    // count feeds both the read size and the native decode loop -- a negative
+    // would underflow the read and a huge one decodes unbounded. 16 bytes/
+    // insn * 256 = 4096 covers every x64 encoding window (M7).
+    if (!Number.isInteger(count) || count < 1 || count > 256)
+      throw new RangeError('count must be an integer between 1 and 256');
     const base = BigInt(addr);
     const raw = native.readBuffer(
       this.#handle,
@@ -1290,6 +1334,10 @@ export class Process implements Disposable {
    */
   waitForExit(timeoutMs?: number): Promise<number | null> {
     this.assertOpen();
+    // A negative wraps to uint32 INFINITE in the native wait -- the doc says
+    // "no arg = infinite", so a passed negative must throw, not silently wait
+    // forever on a possibly-recycled pid (M5).
+    if (timeoutMs !== undefined) checkTimeout(timeoutMs);
     return native.waitForExit(this.pid, timeoutMs);
   }
   /**
@@ -1372,6 +1420,9 @@ export class Process implements Disposable {
   ): number | null {
     this.assertOpen();
     checkAddr(fnAddr, 'fnAddr');
+    // param crosses the N-API boundary as a pointer-width value -- a string or
+    // object would hit the unchecked As<> cast and risk a NAPI fatal (M2).
+    checkAddr(param, 'param');
     checkTimeout(timeoutMs);
     return native.callRemote(this.pid, fnAddr, param, timeoutMs);
   }
@@ -1539,11 +1590,11 @@ export class Process implements Disposable {
       const s = rLo > lo ? rLo : lo,
         e = rHi < hi ? rHi : hi;
       if (s >= e) continue;
+      // Skip everything that isn't MEM_COMMIT -- a MEM_RESERVE (or freed)
+      // range would read back as zero-fill via readSafe and report a false
+      // "cave" in memory that faults on write (M1).
       const q = this.queryAddress(s);
-      if (!q || q.state !== MEM_COMMIT) {
-        // regions() only returns committed allocations in practice, but confirm
-        if (!q) continue;
-      }
+      if (!q || q.state !== MEM_COMMIT) continue;
       const buf = this.readSafe(s, Number(e - s));
       let run = 0;
       for (let i = 0; i < buf.length; i++) {
@@ -1741,6 +1792,13 @@ export class Process implements Disposable {
         end = sec[1];
       }
     }
+    // Option fields cross into the C++ worker via an unchecked JS-object read
+    // -- validate types so a wrong-typed value can't reach the boundary (M6).
+    if (
+      opts.onlyReadable !== undefined &&
+      typeof opts.onlyReadable !== 'boolean'
+    )
+      throw new TypeError('onlyReadable must be a boolean');
     return native.scan(this.pid, pattern, {
       start,
       end,
@@ -1814,6 +1872,18 @@ export class Process implements Disposable {
       start = m.base;
       end = m.base + m.size;
     }
+    // Same N-API boundary concern as scan() -- validate the option types that
+    // feed the native worker (M6).
+    if (
+      opts.onlyWritable !== undefined &&
+      typeof opts.onlyWritable !== 'boolean'
+    )
+      throw new TypeError('onlyWritable must be a boolean');
+    if (
+      opts.alignment !== undefined &&
+      (!Number.isInteger(opts.alignment) || opts.alignment < 1)
+    )
+      throw new RangeError('alignment must be a positive integer');
     const addrs = await native.scanValue(this.pid, needle, {
       start,
       end,
@@ -2029,6 +2099,16 @@ export class Process implements Disposable {
     this.assertOpen();
     checkAddr(addr);
     if (!(type in VALUE_WIDTHS)) throw new TypeError(`unknown type ${type}`);
+    // `value` crosses into native.writeValue inside the timer -- a wrong-typed
+    // arg would hit the unchecked As<> cast and risk a NAPI fatal abort at an
+    // arbitrary later tick (C2). Validate synchronously, before the interval
+    // exists. Also prove the encoding path up front (range/type errors throw
+    // HERE, not per-tick).
+    if (typeof value !== 'number' && typeof value !== 'bigint')
+      throw new TypeError(
+        `freeze value must be number|bigint, got ${typeof value}`,
+      );
+    encodeValue(type, value);
     checkTimeout(intervalMs, 'intervalMs');
     // Capture only what the timer needs -- a closure over `this` would keep
     // the Process (and its OS handle) alive as long as the interval runs.

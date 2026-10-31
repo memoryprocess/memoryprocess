@@ -903,9 +903,36 @@ export class Entity {
     if (!f) throw new RangeError(`unknown entity field ${name}`);
     const at = this.addr + BigInt(f.offset);
     if (typeof value === 'string') {
-      if (f.type.startsWith('wstring:'))
-        return this.proc.writeWideString(at, value, opts);
-      return this.proc.writeString(at, value, 'utf8', opts);
+      if (f.type.startsWith('wstring:')) {
+        // Honor the declared field width: truncate to chars-1 so the value +
+        // its NUL never spills past the field into adjacent memory (M3).
+        const maxChars = Math.max(1, Math.floor(f.width / 2) - 1);
+        return this.proc.writeWideString(at, value.slice(0, maxChars), opts);
+      }
+      if (f.type.startsWith('string:')) {
+        const enc = Buffer.from(value, 'utf8');
+        // Truncate to width-1 bytes on a UTF-8 boundary -- mid-sequence cuts
+        // would emit a replacement char in the target buffer.
+        const max = f.width - 1;
+        let n = Math.min(enc.length, max);
+        while (n > 0 && (enc[n - 1]! & 0xc0) === 0x80) n--;
+        if (n > 0 && (enc[n - 1]! & 0x80) !== 0) {
+          // byte at n-1 is the lead of a multi-byte sequence that got cut --
+          // back off to its start
+          let lead = n - 1;
+          while (lead > 0 && (enc[lead]! & 0xc0) === 0x80) lead--;
+          if ((enc[lead]! & 0x80) !== 0) n = lead;
+        }
+        return this.proc.writeString(
+          at,
+          enc.subarray(0, n).toString('utf8'),
+          'utf8',
+          opts,
+        );
+      }
+      throw new TypeError(
+        `field ${name} (${f.type}) is not a string field -- pass a number|bigint`,
+      );
     }
     const w =
       f.type === 'ref' || VALUE_READERS[f.type] !== undefined ? f.width : 0;
@@ -914,8 +941,13 @@ export class Entity {
       return this.ptrSize === 4
         ? this.proc.writeUInt32(at, Number(BigInt(value) & 0xffffffffn), opts)
         : this.proc.writePointer(at, BigInt(value), opts);
-    if (f.type === 'int64' || f.type === 'uint64')
-      return this.proc.writePointer(at, BigInt(value), opts);
+    // int64 needs the SIGNED write path -- routing it through writePointer
+    // (uint64) throws RangeError on any negative value (C1). asIntN normalizes
+    // out-of-range inputs to two's-complement like Buffer.writeBigInt64LE.
+    if (f.type === 'int64')
+      return this.proc.writeInt64(at, BigInt.asIntN(64, BigInt(value)), opts);
+    if (f.type === 'uint64')
+      return this.proc.writeUInt64(at, BigInt.asUintN(64, BigInt(value)), opts);
     const buf = Buffer.alloc(w);
     if (f.type === 'float') buf.writeFloatLE(Number(value));
     else if (f.type === 'double') buf.writeDoubleLE(Number(value));

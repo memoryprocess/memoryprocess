@@ -14,6 +14,7 @@ export type {
   WriteLogEntry,
   ProcessDescribe,
   ThreadContext,
+  HookHandle,
 } from './process.js';
 export { Protection, AllocationType, ProcessAccess } from './process.js';
 export { Address, Entity, EntityList, Offsets } from './structs.js';
