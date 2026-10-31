@@ -5,8 +5,15 @@ name: Publish
 # prerelease (-dev/-next/-beta) -> that channel; stable -> `latest`.
 # `latest` only ever fires on a maintainer-authored `release-as` stable version --
 # see docs/releasing.md "Promoting dev -> latest".
+# Only tag pushes matching the release-please scheme fire this. A bare
+# `tags:` list was observed letting branch pushes through (runs on every
+# branch push, 0 jobs, `failure` noise) -- `branches-ignore: ['**']`
+# excludes all branch pushes explicitly. The job `if` also double-gates
+# on github.ref being a tag.
 'on':
   push:
+    branches-ignore:
+      - '**'
     tags:
       - 'bindings@*'
       - 'core@*'
@@ -30,8 +37,10 @@ jobs:
           - { package: core }
           - { package: cli }
           - { package: mcp }
-    # Only the package whose tag fired the run publishes.
-    if: startsWith(github.ref_name, format('{0}@', matrix.package))
+    # Double-gate: must be a tag ref AND match this matrix package.
+    if: >-
+      startsWith(github.ref, 'refs/tags/') &&
+      startsWith(github.ref_name, format('{0}@', matrix.package))
     steps:
       - uses: actions/checkout@v7
         with:
