@@ -111,19 +111,31 @@ jobs:
       # (e.g. `@memoryprocess/bindings: workspace:*` -> `^0.0.3-beta.2`).
       # `npm publish` uploads `workspace:*` verbatim and the package then
       # fails to install with EUNSUPPORTEDPROTOCOL.
+      # `npm publish` uploads `workspace:*` specifiers verbatim and the
+      # published package then fails to install (EUNSUPPORTEDPROTOCOL). Bun
+      # rewrites them but `bun publish` has no OIDC Trusted-Publisher support
+      # yet. Fix: rewrite each package.json's `workspace:*` to the resolved
+      # release version right before `npm publish` (the tag tells us the
+      # version; all four packages are lockstep so every workspace dep gets
+      # the same `^<version>`).
+      - name: rewrite workspace deps to release version
+        shell: pwsh
+        run: |
+          $ver = '${{ steps.tags.outputs.core }}' -replace '^[^@]+@', ''
+          foreach ($pkg in $env:PKGS.Split(' ')) {
+            $pj = "packages/$pkg/package.json"
+            $c = Get-Content $pj -Raw
+            $c = $c -replace '"workspace:\*"', "`"^$ver`""
+            [IO.File]::WriteAllText((Resolve-Path $pj), $c, [Text.UTF8Encoding]::new($false))
+            echo "$pkg : workspace:* -> ^$ver"
+          }
       - name: publish to npm (OIDC)
         shell: pwsh
-        env:
-          # actions/setup-node writes a literal `XXXXX-XXXXX` placeholder here
-          # that breaks `bun publish` (it reads NODE_AUTH_TOKEN and 404s on the
-          # package-GET auth check). Clearing it lets bun use the OIDC
-          # Trusted-Publisher flow (`id-token: write` on the job).
-          NODE_AUTH_TOKEN: ''
         run: |
           foreach ($pkg in $env:PKGS.Split(' ')) {
             Push-Location "packages/$pkg"
-            bun publish --access public --tag ${{ steps.chan.outputs.channel }}
-            if ($LASTEXITCODE -ne 0) { throw "bun publish failed for $pkg" }
+            npm publish --access public --tag ${{ steps.chan.outputs.channel }}
+            if ($LASTEXITCODE -ne 0) { throw "npm publish failed for $pkg" }
             Pop-Location
             echo "published $pkg @ ${{ steps.chan.outputs.channel }}"
           }
