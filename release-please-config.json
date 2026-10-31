@@ -14,25 +14,25 @@
       "component": "bindings",
       "package-name": "@memoryprocess/bindings",
       "changelog-path": "CHANGELOG.md",
-      "release-as": "0.0.3-beta.6"
+      "release-as": "0.0.3-beta.7"
     },
     "packages/core": {
       "component": "core",
       "package-name": "@memoryprocess/core",
       "changelog-path": "CHANGELOG.md",
-      "release-as": "0.0.3-beta.6"
+      "release-as": "0.0.3-beta.7"
     },
     "packages/cli": {
       "component": "cli",
       "package-name": "@memoryprocess/cli",
       "changelog-path": "CHANGELOG.md",
-      "release-as": "0.0.3-beta.6"
+      "release-as": "0.0.3-beta.7"
     },
     "packages/mcp": {
       "component": "mcp",
       "package-name": "@memoryprocess/mcp",
       "changelog-path": "CHANGELOG.md",
-      "release-as": "0.0.3-beta.6"
+      "release-as": "0.0.3-beta.7"
     }
   },
   "plugins": ["node-workspace"],
