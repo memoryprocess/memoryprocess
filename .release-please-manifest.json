@@ -1,6 +1,6 @@
 {
-  "packages/bindings": "0.0.3-beta.1",
-  "packages/core": "0.0.3-beta.1",
-  "packages/cli": "0.0.3-beta.1",
-  "packages/mcp": "0.0.3-beta.1"
+  "packages/bindings": "0.0.3-beta.2",
+  "packages/core": "0.0.3-beta.2",
+  "packages/cli": "0.0.3-beta.2",
+  "packages/mcp": "0.0.3-beta.2"
 }
