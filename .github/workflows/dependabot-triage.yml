@@ -13,6 +13,15 @@ name: Dependabot Triage
 on:
   pull_request:
     types: [opened, reopened, synchronize]
+  # Manual re-triage of an existing Dependabot PR -- the pull_request
+  # trigger only fires on new events, so open a dispatch to re-run the
+  # agent on a PR that was opened before this workflow landed.
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Dependabot PR number to triage'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -20,7 +29,7 @@ permissions:
 
 jobs:
   triage:
-    if: github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]'
+    if: github.actor == 'dependabot[bot]' || github.event.pull_request.user.login == 'dependabot[bot]' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
@@ -61,7 +70,7 @@ jobs:
         env:
           DEVIN_MODEL: swe-2-high
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
         run: |
           $prompt = @"
           Triage Dependabot PR #$env:PR_NUMBER for repo memoryprocess/memoryprocess.
@@ -92,7 +101,7 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
           VERDICT: ${{ steps.triage.outputs.verdict }}
         run: |
           if ($env:VERDICT -eq 'MERGE') {
