@@ -113,6 +113,12 @@ jobs:
       # fails to install with EUNSUPPORTEDPROTOCOL.
       - name: publish to npm (OIDC)
         shell: pwsh
+        env:
+          # actions/setup-node writes a literal `XXXXX-XXXXX` placeholder here
+          # that breaks `bun publish` (it reads NODE_AUTH_TOKEN and 404s on the
+          # package-GET auth check). Clearing it lets bun use the OIDC
+          # Trusted-Publisher flow (`id-token: write` on the job).
+          NODE_AUTH_TOKEN: ''
         run: |
           foreach ($pkg in $env:PKGS.Split(' ')) {
             Push-Location "packages/$pkg"
