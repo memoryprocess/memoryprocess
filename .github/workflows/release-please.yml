@@ -7,10 +7,11 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write # OIDC for npm Trusted Publishing (publish job)
 
 jobs:
   release-please:
-    # Only run on main — on feature branches (where this file is new) GitHub
+    # Only run on main -- on feature branches (where this file is new) GitHub
     # evaluates the workflow on push even though branches:[main] excludes it,
     # producing a spurious 'workflow file issue' failure. Guard explicitly.
     if: github.ref == 'refs/heads/main'
@@ -18,6 +19,10 @@ jobs:
     timeout-minutes: 10
     outputs:
       releases: ${{ steps.release.outputs.releases_created }}
+      tag_bindings: ${{ steps.release.outputs['packages/bindings--tag_name'] }}
+      tag_core: ${{ steps.release.outputs['packages/core--tag_name'] }}
+      tag_cli: ${{ steps.release.outputs['packages/cli--tag_name'] }}
+      tag_mcp: ${{ steps.release.outputs['packages/mcp--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -25,3 +30,69 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
+
+  # Publishes to npm right after release-please cuts the release -- same
+  # workflow, so no cross-workflow event is needed (releases made by
+  # GITHUB_TOKEN do not fire `on: release` workflows anyway). The dist-tag
+  # comes from the version suffix in the tag: -dev/-next/-beta/-alpha ->
+  # that channel; no prerelease -> `latest`. `latest` only ever fires on a
+  # maintainer-authored `release-as` stable version -- docs/releasing.md.
+  publish:
+    needs: release-please
+    if: needs.release-please.outputs.releases == 'true'
+    name: publish ${{ matrix.package }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { package: bindings }
+          - { package: core }
+          - { package: cli }
+          - { package: mcp }
+    # Only the package that actually got a release tag publishes.
+    if: >-
+      (matrix.package == 'bindings' && needs.release-please.outputs.tag_bindings != '') ||
+      (matrix.package == 'core'     && needs.release-please.outputs.tag_core != '') ||
+      (matrix.package == 'cli'      && needs.release-please.outputs.tag_cli != '') ||
+      (matrix.package == 'mcp'      && needs.release-please.outputs.tag_mcp != '')
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+      - run: bun install
+      - name: build
+        working-directory: packages/${{ matrix.package }}
+        run: bun run build
+      # The version in the release tag decides the npm channel:
+      # 1.2.3-dev.4 -> dev, 1.2.3-next.1 -> next, 1.2.3 (no prerelease) -> latest.
+      - name: pick dist-tag from version
+        id: chan
+        shell: pwsh
+        run: |
+          $tags = @{
+            bindings = '${{ needs.release-please.outputs.tag_bindings }}'
+            core     = '${{ needs.release-please.outputs.tag_core }}'
+            cli      = '${{ needs.release-please.outputs.tag_cli }}'
+            mcp      = '${{ needs.release-please.outputs.tag_mcp }}'
+          }
+          $ver = $tags['${{ matrix.package }}'] -replace '^[^@]+@', ''
+          $channel = 'latest'
+          if ($ver -match '-(dev|next|beta|alpha)') { $channel = $Matches[1] }
+          "channel=$channel" >> $env:GITHUB_OUTPUT
+          echo "version=$ver channel=$channel"
+      # OIDC Trusted Publishing: no NODE_AUTH_TOKEN -- the job's `id-token: write`
+      # permission lets npm exchange the GitHub OIDC token for a short-lived
+      # publish credential. Requires a Trusted Publisher configured on
+      # npmjs.com per package pointing at THIS workflow (release-please.yml).
+      - name: publish to npm (OIDC)
+        working-directory: packages/${{ matrix.package }}
+        run: npm publish --access public --tag ${{ steps.chan.outputs.channel }} --provenance
