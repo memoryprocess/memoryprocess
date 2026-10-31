@@ -5,7 +5,7 @@ name: Publish
 # prerelease (-dev/-next/-beta) -> that channel; stable -> `latest`.
 # `latest` only ever fires on a maintainer-authored `release-as` stable version --
 # see docs/releasing.md "Promoting dev -> latest".
-"on":
+'on':
   push:
     tags:
       - 'bindings@*'
