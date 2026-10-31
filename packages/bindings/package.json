@@ -16,9 +16,12 @@
   },
   "files": [
     "dist",
+    "src",
     "prebuilds",
     "binding.gyp",
-    "native"
+    "native",
+    "LICENSE",
+    "README.md"
   ],
   "os": [
     "win32"
@@ -32,6 +35,9 @@
     "check": "bun check",
     "typecheck": "tsc --noEmit",
     "prebuild:all": "prebuildify --napi -t 22.17.0 -t 24.4.0 -t 25.0.0 -t 26.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "repository": {
     "type": "git",
