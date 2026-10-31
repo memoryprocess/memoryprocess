@@ -11,18 +11,11 @@ permissions:
 
 jobs:
   release-please:
-    # Only run on main -- on feature branches (where this file is new) GitHub
-    # evaluates the workflow on push even though branches:[main] excludes it,
-    # producing a spurious 'workflow file issue' failure. Guard explicitly.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       releases: ${{ steps.release.outputs.releases_created }}
-      tag_bindings: ${{ steps.release.outputs['packages/bindings--tag_name'] }}
-      tag_core: ${{ steps.release.outputs['packages/core--tag_name'] }}
-      tag_cli: ${{ steps.release.outputs['packages/cli--tag_name'] }}
-      tag_mcp: ${{ steps.release.outputs['packages/mcp--tag_name'] }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -31,14 +24,17 @@ jobs:
           manifest-file: .release-please-manifest.json
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Publishes to npm right after release-please cuts the release -- same
-  # workflow, so no cross-workflow event is needed (releases made by
-  # GITHUB_TOKEN do not fire `on: release` workflows anyway). The dist-tag
-  # comes from the version suffix in the tag: -dev/-next/-beta/-alpha ->
-  # that channel; no prerelease -> `latest`. `latest` only ever fires on a
-  # maintainer-authored `release-as` stable version -- docs/releasing.md.
+  # Publishes to npm after release-please cuts the release -- same workflow,
+  # no cross-workflow event needed (GITHUB_TOKEN-created tags/releases do
+  # not fire other workflows). For each matrix package, the job resolves
+  # the newest git tag matching `<pkg>@*` pushed at the release commit and
+  # derives the npm dist-tag from the version suffix:
+  # -dev/-next/-beta/-alpha -> that channel; stable -> `latest`.
+  # `latest` only ever fires on a maintainer-authored `release-as` stable
+  # version -- see docs/releasing.md.
   publish:
     needs: release-please
+    if: needs.release-please.outputs.releases == 'true'
     name: publish ${{ matrix.package }}
     runs-on: windows-latest
     timeout-minutes: 20
@@ -50,18 +46,11 @@ jobs:
           - { package: core }
           - { package: cli }
           - { package: mcp }
-    # Runs only when release-please cut a release AND the tag belongs to
-    # this matrix package (its per-path output is non-empty).
-    if: >-
-      needs.release-please.outputs.releases == 'true' &&
-      ((matrix.package == 'bindings' && needs.release-please.outputs.tag_bindings != '') ||
-       (matrix.package == 'core'     && needs.release-please.outputs.tag_core != '') ||
-       (matrix.package == 'cli'      && needs.release-please.outputs.tag_cli != '') ||
-       (matrix.package == 'mcp'      && needs.release-please.outputs.tag_mcp != ''))
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+          fetch-depth: 0 # need tags to resolve the release tag per package
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
@@ -70,22 +59,25 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
       - run: bun install
+      - name: resolve release tag for this package
+        id: tag
+        shell: pwsh
+        run: |
+          $pkg = '${{ matrix.package }}'
+          $tag = git tag --list "$pkg@*" --sort=-version:refname | Select-Object -First 1
+          if (-not $tag) { throw "no $pkg@* tag found" }
+          echo "resolved release tag $tag for $pkg"
+          "tag=$tag" >> $env:GITHUB_OUTPUT
       - name: build
         working-directory: packages/${{ matrix.package }}
         run: bun run build
-      # The version in the release tag decides the npm channel:
-      # 1.2.3-dev.4 -> dev, 1.2.3-next.1 -> next, 1.2.3 (no prerelease) -> latest.
+      # The version in the tag decides the npm channel: 1.2.3-dev.4 -> dev,
+      # 1.2.3-next.1 -> next, 1.2.3 (no prerelease) -> latest.
       - name: pick dist-tag from version
         id: chan
         shell: pwsh
         run: |
-          $tags = @{
-            bindings = '${{ needs.release-please.outputs.tag_bindings }}'
-            core     = '${{ needs.release-please.outputs.tag_core }}'
-            cli      = '${{ needs.release-please.outputs.tag_cli }}'
-            mcp      = '${{ needs.release-please.outputs.tag_mcp }}'
-          }
-          $ver = $tags['${{ matrix.package }}'] -replace '^[^@]+@', ''
+          $ver = '${{ steps.tag.outputs.tag }}' -replace '^[^@]+@', ''
           $channel = 'latest'
           if ($ver -match '-(dev|next|beta|alpha)') { $channel = $Matches[1] }
           "channel=$channel" >> $env:GITHUB_OUTPUT
