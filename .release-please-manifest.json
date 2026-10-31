@@ -2,5 +2,5 @@
   "packages/bindings": "0.1.0-beta.0",
   "packages/core": "0.1.0-beta.0",
   "packages/cli": "1.0.0",
-  "packages/mcp": "0.1.0-beta.0"
+  "packages/mcp": "1.0.0"
 }
