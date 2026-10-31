@@ -39,25 +39,27 @@ watches/freezes bound to it.
 
 ## Tools
 
-| Tool                  | Description                                                                                               |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `proc_list`           | List running processes `{pid,name}[]`                                                                     |
-| `proc_open`           | Open by `{pid}` or `{name}` -> `{session, describe}`. `access:"ro"` = read-only                           |
-| `proc_close`          | Close a session                                                                                           |
-| `mem_describe`        | `Process.describe()`: arch, modules, writable/exec regions, threads                                       |
-| `mem_read`            | Typed read: `i8...i64/u8...u64`, `f32/f64`, `ptr`, `str`, `wstr`, `bytes[:N]` (+`len`)                    |
-| `mem_write`           | Typed write. `dryRun:true` -> `{addr,current,would,bytes}` preview. Journaled                             |
-| `mem_scan`            | CE value scan -> `{hits:[{addr,value}],count,truncated}` (`module`/`start`/`end`/`limit`)                 |
-| `mem_scan_next`       | Refine hits: `exact`/`changed`/`unchanged`/`increased`/`decreased`/`increasedBy`/`decreasedBy`/`between`  |
-| `mem_pointer_resolve` | `module`+`rva`+optional `offsets[]` -> resolved address (CE pointer syntax; no offsets = module base+rva) |
-| `mem_watch`           | Poll an i32 every `ms` -> `{watchId}`; changes accumulate                                                 |
-| `mem_watch_poll`      | Drain recorded changes `[{value,ts}]` for a `watchId`                                                     |
-| `mem_unwatch`         | Stop a watch                                                                                              |
-| `mem_freeze`          | Re-write a value every `ms` -> `{freezeId}`                                                               |
-| `mem_unfreeze`        | Stop a freeze                                                                                             |
-| `mem_undo`            | Revert last `n` journaled writes (self-correction primitive)                                              |
-| `mem_journal`         | Write-log snapshot `[{index,addr,bytes}]`                                                                 |
-| `eval_js`             | Run JS with `proc` (`Process`) in scope - the escape hatch                                                |
+| Tool                  | Description                                                                                                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `proc_list`           | List running processes `{pid,name}[]`                                                                       |
+| `proc_open`           | Open by `{pid}` or `{name}` -> `{session, describe}`. `access:"ro"` = read-only                             |
+| `proc_close`          | Close a session                                                                                             |
+| `mem_describe`        | `Process.describe()`: arch, modules, writable/exec regions, threads                                         |
+| `mem_read`            | Typed read: `i8...i64/u8...u64`, `f32/f64`, `ptr`, `str`, `wstr`, `bytes[:N]` (+`len`)                      |
+| `mem_write`           | Typed write. `dryRun:true` -> `{addr,current,would,bytes}` preview. Journaled                               |
+| `mem_scan`            | CE value scan -> `{hits:[{addr,value}],count,truncated}` (`module`/`start`/`end`/`limit`)                   |
+| `mem_scan_next`       | Refine hits: `exact`/`changed`/`unchanged`/`increased`/`decreased`/`increasedBy`/`decreasedBy`/`between`    |
+| `mem_scan_pattern`    | AOB signature scan (`"48 8B ?? 10"`) -> `{hits,count,truncated}` (`module`/`section`/`start`/`end`/`limit`) |
+| `mem_regions`         | VirtualQueryEx region map `{base,size,protect,state,type}` (`writableOnly`/`executableOnly` filters)        |
+| `mem_pointer_resolve` | `module`+`rva`+optional `offsets[]` -> resolved address (CE pointer syntax; no offsets = module base+rva)   |
+| `mem_watch`           | Poll an i32 every `ms` -> `{watchId}`; changes accumulate                                                   |
+| `mem_watch_poll`      | Drain recorded changes `[{value,ts}]` for a `watchId`                                                       |
+| `mem_unwatch`         | Stop a watch                                                                                                |
+| `mem_freeze`          | Re-write a value every `ms` -> `{freezeId}`                                                                 |
+| `mem_unfreeze`        | Stop a freeze                                                                                               |
+| `mem_undo`            | Revert last `n` journaled writes (self-correction primitive)                                                |
+| `mem_journal`         | Write-log snapshot `[{index,addr,bytes}]`                                                                   |
+| `eval_js`             | Run JS with `proc` (`Process`) in scope - the escape hatch                                                  |
 
 ## Wire format (docs/json-conventions.md)
 

@@ -11,7 +11,7 @@ This file distills the durable, repo-specific knowledge an agent (or contributor
 - `packages/bindings` -- the `.node` N-API binary + `src/native.ts` (typed interface over 35 stateless fns). Everything takes a `handle`/`pid`/`tid` arg -- no shared native state.
 - `packages/core` -- `Process` class + `structs.ts` (Address/Entity/EntityList/Offsets/readMany/findPointersTo). Depends on bindings via `workspace:*`.
 - `packages/cli` -- `mproc` bin: the Process API as composable commands (`scan`/`scan-pattern`/`next`/`read`/`write`/`pointers`/`watch`/`freeze`/`undo`/`entities` + `attach` stdin session). `.mproc/` persists scan + journal state across one-shot invocations.
-- `packages/mcp` -- MCP stdio server: 17 session-handle tools + `eval_js` escape hatch. `--no-eval`/`MEMP_NO_EVAL=1` = restricted mode (read/describe/scan/watch only; eval + write tools hidden).
+- `packages/mcp` -- MCP stdio server: 18 session-handle tools + `eval_js` escape hatch. `--no-eval`/`MEMP_NO_EVAL=1` = restricted mode (read/describe/scan/watch only; eval + write tools hidden).
 
 ## Hard-won gotchas (do NOT relearn these)
 

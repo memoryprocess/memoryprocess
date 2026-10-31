@@ -106,11 +106,6 @@ jobs:
       # workflow (release-please.yml) for each package.
       # Sequential, dependency-ordered: any failure aborts the rest, so a
       # partial (broken-dependency) release can never ship.
-      # `bun publish` (not `npm publish`) is required here: bun rewrites the
-      # monorepo `workspace:*` dependency specifiers to the published version
-      # (e.g. `@memoryprocess/bindings: workspace:*` -> `^0.0.3-beta.2`).
-      # `npm publish` uploads `workspace:*` verbatim and the package then
-      # fails to install with EUNSUPPORTEDPROTOCOL.
       # `npm publish` uploads `workspace:*` specifiers verbatim and the
       # published package then fails to install (EUNSUPPORTEDPROTOCOL). Bun
       # rewrites them but `bun publish` has no OIDC Trusted-Publisher support
