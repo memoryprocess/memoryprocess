@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.0](https://github.com/memoryprocess/memoryprocess/compare/bindings@0.1.0-beta.0...bindings@1.0.0) (2026-10-31)
+
+
+### Miscellaneous Chores
+
+* **release:** promote bindings/core/mcp to 1.0.0 ([#89](https://github.com/memoryprocess/memoryprocess/issues/89)) ([46a8b47](https://github.com/memoryprocess/memoryprocess/commit/46a8b47fca2ef6ee192d5227d38ef7a64baf9b14))
+
 ## [0.1.0-beta.0](https://github.com/memoryprocess/memoryprocess/compare/bindings@0.0.3-beta.9...bindings@0.1.0-beta.0) (2026-10-31)
 
 ### Bug Fixes
