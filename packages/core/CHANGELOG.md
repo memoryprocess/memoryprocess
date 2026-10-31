@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.0.3-beta.1](https://github.com/memoryprocess/memoryprocess/compare/core@0.0.2-dev.2...core@0.0.3-beta.1) (2026-10-31)
+
+### Features
+
+- **release:** publish inside release-please.yml (kills phantom runs + GITHUB_TOKEN wall) ([#25](https://github.com/memoryprocess/memoryprocess/issues/25)) ([03748db](https://github.com/memoryprocess/memoryprocess/commit/03748dbe7bc3d2137e35b0cf51c39e8f3d4df7ae))
+
+### Reverts
+
+- undo direct-push duplicate-if fix ([#26](https://github.com/memoryprocess/memoryprocess/issues/26)) ([5e6d708](https://github.com/memoryprocess/memoryprocess/commit/5e6d7083c8af2412385f8be399780f305eb59c77))
+
+### Dependencies
+
+- The following workspace dependencies were updated
+  - dependencies
+    - @memoryprocess/bindings bumped to 0.0.3-beta.1
+
 ## [0.0.2-dev.2](https://github.com/memoryprocess/memoryprocess/compare/core@0.0.2-dev.1...core@0.0.2-dev.2) (2026-10-31)
 
 ### Bug Fixes
