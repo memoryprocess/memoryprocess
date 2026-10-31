@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { Process, type WritePreview } from '../src/index.js';
+import { Process, Protection, type WritePreview } from '../src/index.js';
 import { spawnVictim, type Victim } from './victim.js';
 
 let victim: Victim;
@@ -126,21 +126,35 @@ describe('write-log + undo', () => {
     expect(() => proc.undo(-3)).toThrow(RangeError);
   });
 
-  test('undo() on unreadable-region write: recorded null, skipped, returns 0', () => {
+  test('undo() on unreadable-region write: failed write is NOT journaled (M8)', () => {
     using proc = Process.open(victim.pid);
-    // PAGE_GUARD page -- pre-write snapshot fails -> bytes:null entry. The
-    // write itself also fails (WriteError), but the journal entry remains.
+    // PAGE_GUARD page -- the write faults (WriteError). A failed write must
+    // never reach the journal (else a later undo would "revert" bytes that
+    // were never changed).
+    const before = proc.writeLog.length;
     try {
       proc.writeBuffer(victim.addr.g_guard + 0x1000n, Buffer.from([1, 2, 3]));
     } catch {
       /* WriteError expected -- guard page faults */
     }
-    const log = proc.writeLog;
-    expect(log.length).toBeGreaterThan(0);
-    const last = log[log.length - 1]!;
-    expect(last.addr).toBe(victim.addr.g_guard + 0x1000n);
-    expect(last.bytes).toBeNull();
-    expect(proc.undo()).toBe(0); // skipped, doesn't count
+    expect(proc.writeLog.length).toBe(before);
+    expect(proc.undo()).toBe(0);
+  });
+
+  test('successful write journals; undo restores then ping-pongs (redo)', () => {
+    using proc = Process.open(victim.pid);
+    const a = proc.alloc(0x100, Protection.PAGE_READWRITE);
+    try {
+      const v0 = proc.readInt32(a);
+      proc.writeInt32(a, 55);
+      expect(proc.undo()).toBe(1); // restore v0
+      expect(proc.readInt32(a)).toBe(v0);
+      expect(proc.undo()).toBe(1); // undo of the restore = redo 55
+      expect(proc.readInt32(a)).toBe(55);
+      proc.writeInt32(a, v0); // leave clean
+    } finally {
+      proc.free(a);
+    }
   });
 
   test('undo round-trip: undo() again "redoes" the original write', () => {

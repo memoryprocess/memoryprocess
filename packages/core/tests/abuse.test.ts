@@ -95,11 +95,15 @@ describe('M4/m10 -- writeProtected restore + disasm count cap', () => {
     ).toThrow();
   });
 
-  test('disassemble with huge count reads a bounded window, no wrap', () => {
+  test('disassemble with huge count throws RangeError (bounded contract)', () => {
     using proc = Process.open(victim.pid);
     const src = proc.alloc(0x2000, Protection.PAGE_EXECUTE_READWRITE);
     proc.writeBuffer(src, Buffer.alloc(0x2000, 0x90));
-    const insns = proc.disassemble(src, 1e12);
+    // count is now range-validated (T2 M7): >256 must throw, not decode
+    // unbounded. A valid count still returns the window.
+    expect(() => proc.disassemble(src, 1e12)).toThrow(RangeError);
+    expect(() => proc.disassemble(src, 257)).toThrow(RangeError);
+    const insns = proc.disassemble(src, 256);
     expect(insns.length).toBeGreaterThan(0);
     expect(insns.length).toBeLessThanOrEqual(256);
     proc.free(src);

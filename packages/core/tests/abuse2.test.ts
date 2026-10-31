@@ -346,12 +346,11 @@ describe('hook / disasm abuse', () => {
       expect((r.value as unknown[]).length).toBeLessThanOrEqual(512);
     proc.free(src);
   });
-  test('disassemble(addr, 1e6) -> bounded result', () => {
+  test('disassemble(addr, 1e6) -> RangeError, no crash', () => {
     using proc = Process.open(victim.pid);
     const src = proc.alloc(0x1000, Protection.PAGE_EXECUTE_READWRITE);
     proc.writeBuffer(src, Buffer.alloc(0x1000, 0x90));
-    const insns = proc.disassemble(src, 1e6);
-    expect(insns.length).toBeLessThanOrEqual(4096);
+    expect(() => proc.disassemble(src, 1e6)).toThrow(RangeError);
     proc.free(src);
   });
 });
