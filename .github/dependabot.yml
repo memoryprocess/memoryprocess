@@ -1,0 +1,42 @@
+# Dependabot -- keeps dependencies current via auto PRs (each goes through
+# the normal PR -> CI -> merge gate; nothing bypasses it).
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # npm deps across the whole workspace (root + packages/*).
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    open-pull-requests-limit: 10
+    # Group all version bumps into one PR per run -- a monorepo toolkit does
+    # not want 8 tiny dep PRs; one grouped PR is reviewed and merged once.
+    groups:
+      dependencies:
+        applies-to: 'version-updates'
+        patterns: ['*']
+      dev-dependencies:
+        applies-to: 'version-updates'
+        dependency-type: 'development'
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    labels: ['dependencies']
+
+  # GitHub Actions pinned versions (checkout, setup-node, setup-bun,
+  # release-please-action) -- these move and matter for the release pipeline.
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    groups:
+      github-actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    labels: ['dependencies', 'ci']

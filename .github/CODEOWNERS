@@ -4,8 +4,9 @@
 # stays unowned so normal changes flow without a review bottleneck.
 # https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
-# CI + release pipeline -- can publish to npm or change the build.
-.github/workflows/    @JoShMiQueL
+# CI + release pipeline -- can publish to npm, change the build, or bump deps.
+.github/workflows/     @JoShMiQueL
+.github/dependabot.yml @JoShMiQueL
 
 # release-please manifest + config -- decides versions, channels, tags.
 release-please-config.json
