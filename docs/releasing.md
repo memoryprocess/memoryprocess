@@ -11,8 +11,8 @@ other workflows, the GitHub recursion guard):
    `pkg@x.y.z` git tags + GitHub releases.
 2. `publish` (windows): runs only when `releases_created == 'true'`. ONE
    sequential job -- `bun install` -> `build all packages` -> `prebuild
-   bindings (N-API ABIs)` -> `resolve release tag per package` -> `pick
-   dist-tag from version` -> `rewrite workspace deps` -> `npm publish`
+bindings (N-API ABIs)` -> `resolve release tag per package` -> `pick
+dist-tag from version` -> `rewrite workspace deps` -> `npm publish`
    for `bindings core cli mcp` in that order. Any failure aborts the rest,
    so a partial release (a package live without its dependency) can never
    ship.
@@ -25,12 +25,12 @@ Trusted Publisher on npmjs.com points each package at `release-please.yml`.
 
 npm **dist-tags** separate what's installable by default from opt-in channels:
 
-| Tag      | Installs on `npm i <pkg>` | Purpose |
-| -------- | ------------------------- | ------- |
-| `latest` | ✅ the only default        | **Stable.** Currently `0.0.1`. |
-| `dev`    | ❌ (needs `@dev`)         | `*.*.*-dev.N` auto channel. Currently `0.0.1`. |
-| `beta`   | ❌ (needs `@beta`)        | Stabilization preview. Currently `0.0.3-beta.9`. |
-| `next`   | ❌ (needs `@next`)        | Optional preview channel before `latest`. |
+| Tag      | Installs on `npm i <pkg>` | Purpose                                          |
+| -------- | ------------------------- | ------------------------------------------------ |
+| `latest` | [x] the only default      | **Stable.** Currently `0.0.1`.                   |
+| `dev`    | [ ] (needs `@dev`)        | `*.*.*-dev.N` auto channel. Currently `0.0.1`.   |
+| `beta`   | [ ] (needs `@beta`)       | Stabilization preview. Currently `0.0.3-beta.9`. |
+| `next`   | [ ] (needs `@next`)       | Optional preview channel before `latest`.        |
 
 With `versioning: "prerelease"` + `prerelease-type` in
 `release-please-config.json`, release-please proposes prerelease versions;
@@ -63,7 +63,7 @@ These burned us; each is now enforced in `release-please.yml` + `AGENTS.md`:
   `EUNSUPPORTEDPROTOCOL`. The `rewrite workspace deps` step replaces it
   with `^<version>` from the resolved tag.
 - **Publish is sequential + dependency-ordered** (`bindings -> core -> cli
-  -> mcp`), never a parallel matrix -- a mid-chain failure leaves a broken
+-> mcp`), never a parallel matrix -- a mid-chain failure leaves a broken
   partial release on npm.
 - **`prebuildify` runs via `npm run`**, not `bun run` (needs the npm-bundled
   `node-gyp` on PATH).
@@ -78,7 +78,7 @@ Once a `latest` version exists, a critical fix shouldn't ride `main`'s
 prerelease line (which may carry unrelated half-work):
 
 ```
-main  ──*----*----*--  (prerelease channel, keeps moving)
+main  --*----*----*--  (prerelease channel, keeps moving)
          \
           -- tag core@1.2.0  (the released stable)
                   \
