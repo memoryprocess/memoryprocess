@@ -1,7 +1,7 @@
 {
   "name": "memoryprocess",
   "private": true,
-  "description": "Windows process-memory toolkit — N-API bindings, Process engine, CLI, and MCP server. A ground-up rewrite of memoryjs.",
+  "description": "Windows process-memory toolkit -- N-API bindings, Process engine, CLI, and MCP server. A ground-up rewrite of memoryjs.",
   "type": "module",
   "packageManager": "bun@1.4.4",
   "workspaces": [

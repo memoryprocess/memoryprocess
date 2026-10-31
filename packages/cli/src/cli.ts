@@ -29,15 +29,22 @@ async function main(): Promise<number> {
     console.log(`${pkg.name} ${pkg.version}`);
     return 0;
   }
+  // `--help`/`-h`/`help` print usage -- check before parseFlags so the flag
+  // isn't rejected as unknown. Bare `mproc` also prints usage (exit 1).
+  if (
+    argv.length === 0 ||
+    argv.includes('--help') ||
+    argv.includes('-h') ||
+    argv[0] === 'help'
+  ) {
+    console.log(USAGE);
+    return argv.length === 0 ? 1 : 0;
+  }
   const { flags, pos } = parseFlags(argv);
   if (flags.rest.length)
     throw new UsageError(`unknown flag(s): ${flags.rest.join(' ')}`);
 
   const cmd = pos[0];
-  if (!cmd || cmd === 'help' || cmd === '--help' || cmd === '-h') {
-    console.log(USAGE);
-    return cmd ? 0 : 1;
-  }
 
   if (cmd === 'attach') {
     const pidArg = pos[1];

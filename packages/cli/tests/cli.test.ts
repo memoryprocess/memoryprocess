@@ -403,6 +403,19 @@ describe('mproc -- introspection', () => {
     expect(r2.stdout.trim()).toBe(r.stdout.trim());
   });
 
+  test('help flags print usage', async () => {
+    for (const args of [['--help'], ['-h'], ['help']]) {
+      const r = await mproc(args);
+      expect(r.code).toBe(0);
+      expect(r.stdout).toContain('mproc -- memoryprocess CLI');
+      expect(r.stdout).toContain('mproc list');
+    }
+    // bare `mproc` prints usage too but exits 1 (no command given)
+    const bare = await mproc([]);
+    expect(bare.code).toBe(1);
+    expect(bare.stdout).toContain('mproc -- memoryprocess CLI');
+  });
+
   test('regions lists committed regions with hex bases', async () => {
     const r = await mproc(['regions', String(victim.pid), '--json']);
     expect(r.code).toBe(0);
