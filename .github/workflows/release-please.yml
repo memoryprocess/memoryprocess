@@ -25,32 +25,29 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Publishes to npm after release-please cuts the release -- same workflow,
-  # no cross-workflow event needed (GITHUB_TOKEN-created tags/releases do
-  # not fire other workflows). For each matrix package, the job resolves
-  # the newest git tag matching `<pkg>@*` pushed at the release commit and
-  # derives the npm dist-tag from the version suffix:
-  # -dev/-next/-beta/-alpha -> that channel; stable -> `latest`.
-  # `latest` only ever fires on a maintainer-authored `release-as` stable
-  # version -- see docs/releasing.md.
+  # no cross-workflow event (GITHUB_TOKEN-created tags/releases never fire
+  # other workflows). Versions are LOCKSTEP: the four packages ship one
+  # version together, so the publish runs as ONE sequential job in
+  # dependency order (bindings -> core -> cli + mcp). A failure aborts
+  # before downstream packages publish -- core is never live without its
+  # bindings, cli/mcp never without their core.
+  # The dist-tag comes from the version suffix in the resolved release tag:
+  # -dev/-next/-beta/-alpha -> that channel; stable -> `latest`. `latest`
+  # only ever fires on a maintainer-authored `release-as` stable version --
+  # docs/releasing.md.
   publish:
     needs: release-please
     if: needs.release-please.outputs.releases == 'true'
-    name: publish ${{ matrix.package }}
+    name: publish
     runs-on: windows-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { package: bindings }
-          - { package: core }
-          - { package: cli }
-          - { package: mcp }
+    timeout-minutes: 30
+    env:
+      PKGS: bindings core cli mcp # publish order = dependency order
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          fetch-depth: 0 # need tags to resolve the release tag per package
+          fetch-depth: 0 # resolve release tags
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version-file: package.json
@@ -59,33 +56,49 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
       - run: bun install
-      - name: resolve release tag for this package
-        id: tag
+      - name: build all packages
         shell: pwsh
         run: |
-          $pkg = '${{ matrix.package }}'
-          $tag = git tag --list "$pkg@*" --sort=-version:refname | Select-Object -First 1
-          if (-not $tag) { throw "no $pkg@* tag found" }
-          echo "resolved release tag $tag for $pkg"
-          "tag=$tag" >> $env:GITHUB_OUTPUT
-      - name: build
-        working-directory: packages/${{ matrix.package }}
-        run: bun run build
+          foreach ($pkg in $env:PKGS.Split(' ')) {
+            Push-Location "packages/$pkg"
+            bun run build
+            if ($LASTEXITCODE -ne 0) { throw "build failed for $pkg" }
+            Pop-Location
+          }
+      - name: resolve release tag per package
+        id: tags
+        shell: pwsh
+        run: |
+          foreach ($pkg in $env:PKGS.Split(' ')) {
+            $tag = git tag --list "$pkg@*" --sort=-version:refname | Select-Object -First 1
+            if (-not $tag) { throw "no $pkg@* tag found" }
+            "$pkg=$tag" | Out-String | Write-Output
+            "$pkg=$tag" >> $env:GITHUB_OUTPUT
+          }
       # The version in the tag decides the npm channel: 1.2.3-dev.4 -> dev,
       # 1.2.3-next.1 -> next, 1.2.3 (no prerelease) -> latest.
       - name: pick dist-tag from version
         id: chan
         shell: pwsh
         run: |
-          $ver = '${{ steps.tag.outputs.tag }}' -replace '^[^@]+@', ''
+          $ver = '${{ steps.tags.outputs.core }}' -replace '^[^@]+@', ''
           $channel = 'latest'
           if ($ver -match '-(dev|next|beta|alpha)') { $channel = $Matches[1] }
           "channel=$channel" >> $env:GITHUB_OUTPUT
           echo "version=$ver channel=$channel"
-      # OIDC Trusted Publishing: no NODE_AUTH_TOKEN -- the job's `id-token: write`
-      # permission lets npm exchange the GitHub OIDC token for a short-lived
-      # publish credential. Requires a Trusted Publisher configured on
-      # npmjs.com per package pointing at THIS workflow (release-please.yml).
+      # OIDC Trusted Publishing: no NODE_AUTH_TOKEN -- `id-token: write`
+      # lets npm exchange the GitHub OIDC token for a short-lived publish
+      # credential. Trusted Publisher on npmjs.com must point at THIS
+      # workflow (release-please.yml) for each package.
+      # Sequential, dependency-ordered: any failure aborts the rest, so a
+      # partial (broken-dependency) release can never ship.
       - name: publish to npm (OIDC)
-        working-directory: packages/${{ matrix.package }}
-        run: npm publish --access public --tag ${{ steps.chan.outputs.channel }} --provenance
+        shell: pwsh
+        run: |
+          foreach ($pkg in $env:PKGS.Split(' ')) {
+            Push-Location "packages/$pkg"
+            npm publish --access public --tag ${{ steps.chan.outputs.channel }} --provenance
+            if ($LASTEXITCODE -ne 0) { throw "npm publish failed for $pkg" }
+            Pop-Location
+            echo "published $pkg @ ${{ steps.chan.outputs.channel }}"
+          }

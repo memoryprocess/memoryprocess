@@ -11,7 +11,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const exe = join(root, 'tests', 'victim.exe');
 if (!existsSync(exe)) {
   console.error(
-    'tests/victim.exe not found — run `node scripts/build-victim.mjs` first',
+    'tests/victim.exe not found - run `node scripts/build-victim.mjs` first',
   );
   process.exit(1);
 }

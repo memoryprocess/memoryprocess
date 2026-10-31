@@ -6,6 +6,6 @@ export default defineConfig({
   dts: true,
   outDir: 'dist',
   clean: true,
-  // The native .node is provided by @memoryprocess/bindings — external, never bundled.
+  // The native .node is provided by @memoryprocess/bindings - external, never bundled.
   external: [/\.node$/, '@memoryprocess/bindings'],
 });

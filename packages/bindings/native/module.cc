@@ -12,12 +12,12 @@ extern "C" {
 
 namespace mp {
 
-// Max bytes a single read call may materialize — guards against negative /
+// Max bytes a single read call may materialize - guards against negative /
 // non-finite / absurd `size` values blowing up std::vector across the N-API
 // boundary (a length_error crossing N-API aborts the process).
 static const double MAX_READ_BYTES = 512.0 * 1024.0 * 1024.0;
 
-// NOTE: handles and addresses cross N-API as doubles — above 2^53 they would
+// NOTE: handles and addresses cross N-API as doubles - above 2^53 they would
 // silently round. Harmless today (canonical user-space VA < 2^48, real HANDLE
 // values are small) but don't feed pointers >2^53 through these bindings.
 
@@ -165,8 +165,8 @@ Napi::Value WriteBufferSync(const Napi::CallbackInfo& info) {
 // ---------- v2 Tier-1/2 ----------
 
 // allocMemory(handle, size, protection[, nearAddress]) -> bigint
-// `nearAddress` is passed to VirtualAllocEx as lpAddress — a hint used to land
-// trampoline stubs within rel32 range (±2GB) of a hook site.
+// `nearAddress` is passed to VirtualAllocEx as lpAddress - a hint used to land
+// trampoline stubs within rel32 range (+/-2GB) of a hook site.
 Napi::Value AllocMemorySync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 3) { Napi::TypeError::New(env, "expected (handle,size,protection[,nearAddress])").ThrowAsJavaScriptException(); return env.Null(); }
@@ -234,7 +234,7 @@ Napi::Value SuspendThreadSync(const Napi::CallbackInfo& info) {
   if (info.Length() < 1 || !info[0].IsNumber()) { Napi::TypeError::New(env, "expected tid").ThrowAsJavaScriptException(); return env.Null(); }
   DWORD tid = info[0].As<Napi::Number>().Uint32Value();
   // QA4-C3: suspending OUR OWN thread from a sync binding freezes the JS
-  // engine mid-call — it can never reach resumeThread (unrecoverable
+  // engine mid-call - it can never reach resumeThread (unrecoverable
   // deadlock). Refuse silently (false) so suspendAll() on the caller's own
   // pid skips the calling thread instead of hanging.
   if (tid == GetCurrentThreadId()) return Napi::Boolean::New(env, false);
@@ -384,13 +384,13 @@ Napi::Value FlushInstructionsSync(const Napi::CallbackInfo& info) {
 
 // writeProtectedMemory(handle, address, buffer[, protection]) -> boolean
 // QA4-M1: the old TS flow did protect(addr,len)->oldProt(first page only)->
-// write->protect(addr,len,oldProt) — a write spanning a protection boundary
+// write->protect(addr,len,oldProt) - a write spanning a protection boundary
 // restored EVERY page in the span to the first page's old protection,
 // silently changing protections on the second region. This native
 // implementation walks VirtualQueryEx over the write span, records each
 // region's real old protection, unprotects the whole span, writes, then
 // restores each region individually. Single-region writes keep identical
-// behavior. Restore failures are reported via the `restored` flag — a
+// behavior. Restore failures are reported via the `restored` flag - a
 // restored=false result means part of the span is left at `protection`.
 Napi::Value WriteProtectedMemorySync(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
@@ -410,7 +410,7 @@ Napi::Value WriteProtectedMemorySync(const Napi::CallbackInfo& info) {
   if (info.Length() > 3 && info[3].IsNumber())
     newProt = info[3].As<Napi::Number>().Uint32Value();
   if (buf.Length() == 0) {
-    // Nothing to do — return the same result shape as a real write.
+    // Nothing to do - return the same result shape as a real write.
     auto o = Napi::Object::New(env);
     o.Set("ok", Napi::Boolean::New(env, true));
     o.Set("restored", Napi::Boolean::New(env, true));
@@ -419,7 +419,7 @@ Napi::Value WriteProtectedMemorySync(const Napi::CallbackInfo& info) {
   }
 
   // QA4-M1: record per-region old protection across the whole write span
-  // BEFORE unprotecting — VirtualProtectEx only reports the first page's
+  // BEFORE unprotecting - VirtualProtectEx only reports the first page's
   // old value, so the query walk is the only correct source.
   struct RegionSnap { std::uintptr_t base; std::uintptr_t end; DWORD oldProt; };
   std::vector<RegionSnap> regions;
@@ -445,13 +445,13 @@ Napi::Value WriteProtectedMemorySync(const Napi::CallbackInfo& info) {
   }
 
   // Unprotect each region span (VirtualProtectEx clamps to whole pages, which
-  // is fine — only pages intersecting [addr,end) are touched).
+  // is fine - only pages intersecting [addr,end) are touched).
   bool allProtected = true;
   for (const auto& r : regions) {
     DWORD old = 0;
     if (!VirtualProtectEx(h, reinterpret_cast<LPVOID>(r.base), r.end - r.base,
                           newProt, &old)) {
-      allProtected = false; // continue — best effort
+      allProtected = false; // continue - best effort
     }
   }
 
@@ -487,9 +487,9 @@ static void ThrowInject(Napi::Env env, const char* what, DWORD code) {
 
 // injectDll(pid, dllPath) -> boolean
 // QA4-M2: dllPath must be ABSOLUTE. A relative name resolves against the
-// TARGET's cwd + DLL search order — a DLL-planting primitive when that cwd is
+// TARGET's cwd + DLL search order - a DLL-planting primitive when that cwd is
 // attacker-writable. Reject anything that isn't `X:\...` or a `\\` UNC path.
-// QA4-M2 also: the path is written UTF-16LE and LoadLibraryW is used — the
+// QA4-M2 also: the path is written UTF-16LE and LoadLibraryW is used - the
 // old LoadLibraryA path mangled non-ANSI filenames per the target's codepage.
 static bool IsAbsolutePath(const std::string& p) {
   if (p.size() >= 3 && ((p[0] >= 'A' && p[0] <= 'Z') || (p[0] >= 'a' && p[0] <= 'z')) &&
@@ -516,7 +516,7 @@ Napi::Value InjectDllSync(const Napi::CallbackInfo& info) {
     ThrowInject(env, "dllPath exceeds maximum NT path length (32767)", ERROR_FILENAME_EXCED_RANGE);
     return env.Null();
   }
-  // Optional 3rd arg: remote-thread wait timeout (bounded — a negative or
+  // Optional 3rd arg: remote-thread wait timeout (bounded - a negative or
   // huge value would wrap DWORD into an ~infinite sync wait, QA4-H1).
   DWORD waitMs = 10000;
   if (info.Length() > 2 && info[2].IsNumber()) {
@@ -541,7 +541,7 @@ Napi::Value InjectDllSync(const Napi::CallbackInfo& info) {
   HANDLE h = OpenProcess(access, FALSE, pid);
   if (!h) { ThrowInject(env, "OpenProcess failed", GetLastError()); return env.Null(); }
 
-  // WoW64 targets load a 32-bit kernel32 at a different base — LoadLibraryW
+  // WoW64 targets load a 32-bit kernel32 at a different base - LoadLibraryW
   // resolved in *our* (x64) process would be the wrong address. Refuse rather
   // than silently corrupting the target.
   {
@@ -587,10 +587,10 @@ Napi::Value InjectDllSync(const Napi::CallbackInfo& info) {
     if (wr != WAIT_OBJECT_0) {
       // QA4-C1: do NOT TerminateThread here. TerminateThread is asynchronous
       // and killing a thread inside LoadLibraryW can leave the target's
-      // loader lock permanently held — every subsequent LoadLibrary /
+      // loader lock permanently held - every subsequent LoadLibrary /
       // thread-creation in the victim deadlocks. Instead we close our handle
       // and deliberately LEAK the small path buffer so a late-finishing
-      // thread never reads freed memory. Bounded leak ≤64KB; a wedged target
+      // thread never reads freed memory. Bounded leak <=64KB; a wedged target
       // is worse.
       CloseHandle(t);
       ThrowInject(env, "LoadLibraryW remote thread timed out (leaked path buffer; target not terminated to avoid loader-lock deadlock)",
@@ -628,7 +628,7 @@ Napi::Value EjectDllSync(const Napi::CallbackInfo& info) {
   HANDLE h = OpenProcess(access, FALSE, pid);
   if (!h) { ThrowInject(env, "OpenProcess failed", GetLastError()); return env.Null(); }
 
-  // QA4-C4: same WoW64 guard as injectDll — our 64-bit FreeLibrary address is
+  // QA4-C4: same WoW64 guard as injectDll - our 64-bit FreeLibrary address is
   // meaningless inside a 32-bit target's address space; the remote thread
   // would execute a wild pointer.
   {
@@ -652,7 +652,7 @@ Napi::Value EjectDllSync(const Napi::CallbackInfo& info) {
     if (!t) { ThrowInject(env, "CreateRemoteThread failed", GetLastError()); break; }
     DWORD wr = WaitForSingleObject(t, 10000);
     if (wr != WAIT_OBJECT_0) {
-      // QA4-C1: never TerminateThread inside FreeLibrary — the remote thread
+      // QA4-C1: never TerminateThread inside FreeLibrary - the remote thread
       // can hold the loader lock; killing it wedges the target permanently.
       // Just close our handle and report the timeout.
       CloseHandle(t);
@@ -660,7 +660,7 @@ Napi::Value EjectDllSync(const Napi::CallbackInfo& info) {
                   wr == WAIT_FAILED ? GetLastError() : ERROR_TIMEOUT);
       break;
     }
-    // QA4-C4: FreeLibrary returns BOOL as the thread exit code — verify it.
+    // QA4-C4: FreeLibrary returns BOOL as the thread exit code - verify it.
     // Without this check, ejecting kernel32/main.exe/garbage bases reported
     // success while nothing (or worse, the wrong thing) happened.
     DWORD exitCode = 0;
@@ -805,7 +805,7 @@ Napi::Value CallRemoteSync(const Napi::CallbackInfo& info) {
   }
   DWORD timeout = 10000;
   if (info.Length() > 3 && info[3].IsNumber()) {
-    // QA4-H1: Uint32Value() on -1 wraps to 0xFFFFFFFF = INFINITE — a sync
+    // QA4-H1: Uint32Value() on -1 wraps to 0xFFFFFFFF = INFINITE - a sync
     // binding that never returns bricks the whole JS process. Clamp to a
     // bounded range; negative/non-finite values are a caller bug.
     double t = info[3].As<Napi::Number>().DoubleValue();
@@ -825,13 +825,13 @@ Napi::Value CallRemoteSync(const Napi::CallbackInfo& info) {
   if (!t) { CloseHandle(h); return env.Null(); }
   DWORD wr = WaitForSingleObject(t, timeout);
   DWORD code = 0;
-  // QA4-C1: TerminateThread is asynchronous — it only *requests* termination.
+  // QA4-C1: TerminateThread is asynchronous - it only *requests* termination.
   // Returning immediately after TerminateThread lets the caller (execShellcode
   // finally-block, injectDll) free memory the zombie thread may still be
   // executing in. Wait for the thread object itself to be signaled (max 2s)
   // so a timeout-return really means the thread is dead. NOTE: terminating a
   // thread that was mid-LoadLibrary can still leave the target's loader lock
-  // held — an inherent TerminateThread hazard; callers needing guaranteed
+  // held - an inherent TerminateThread hazard; callers needing guaranteed
   // non-wedging behavior should prefer a longer timeout over termination.
   if (wr != WAIT_OBJECT_0) {
     TerminateThread(t, 0);
@@ -862,7 +862,7 @@ Napi::Value DisasmInstructionsSync(const Napi::CallbackInfo& info) {
   auto addr = static_cast<std::uintptr_t>(info[1].As<Napi::Number>().DoubleValue());
   auto count = static_cast<std::size_t>(info[2].As<Napi::Number>().DoubleValue());
   if (count == 0) return Napi::Array::New(env, 0);
-  if (count > 256) count = 256; // 256*15 ≈ 4KB window; also prevents count*16 wraparound
+  if (count > 256) count = 256; // 256*15 ~ 4KB window; also prevents count*16 wraparound
 
   std::size_t readSize = count * 16;   // max x64 instruction length is 15
   if (readSize > 4096) readSize = 4096;
@@ -882,7 +882,7 @@ Napi::Value DisasmInstructionsSync(const Napi::CallbackInfo& info) {
   std::size_t off = 0, n = 0;
   while (off < buf.size() && n < count) {
     // hde64_disasm takes no length and may read up to 15 bytes for one
-    // instruction — feeding it buf.data()+off directly walks past the end of
+    // instruction - feeding it buf.data()+off directly walks past the end of
     // the allocation on a truncated tail. Decode from a 16-byte padded stack
     // scratch instead; the trailing zeros make a truncated insn fail cleanly.
     std::uint8_t scratch[16] = {};
@@ -915,18 +915,18 @@ Napi::Value DisasmInstructionsSync(const Napi::CallbackInfo& info) {
 // MinHook-style relocation: steals whole instructions until >= minBytes are
 // covered, then rewrites position-relative operands so the stolen bytes are
 // correct when executed from `stubAddr` (which must be within rel32 range of
-// `address` — the caller's #allocNear guarantees this):
-//  - rel32 branch/call (E8/E9/0F8x, xbegin): rel32 rewritten in place, OR
+// `address` - the caller's #allocNear guarantees this):
+// - rel32 branch/call (E8/E9/0F8x, xbegin): rel32 rewritten in place, OR
 //    copied verbatim when the target is INSIDE the stolen window (MinHook's
-//    "internal jump" rule — distances are preserved by the copy).
-//  - RIP-relative ModRM (mod=00 rm=101): disp32 rewritten in place so it
+//    "internal jump" rule - distances are preserved by the copy).
+// - RIP-relative ModRM (mod=00 rm=101): disp32 rewritten in place so it
 //    still reaches the original absolute target.
-//  - rel8/rel16 branches incl. LOOP/JECXZ (E0-E3): verbatim if internal —
-//    the operand is position-independent within the window — otherwise
+// - rel8/rel16 branches incl. LOOP/JECXZ (E0-E3): verbatim if internal - 
+//    the operand is position-independent within the window - otherwise
 //    REFUSED (rel8 can't be widened to a same-length rewrite; MinHook
 //    refuses LOOP/JECXZ-external too).
 // Without `stubAddr` every position-relative instruction is refused
-// (HOOK_RELOCATE) — the old verify-only behavior for raw inspection calls.
+// (HOOK_RELOCATE) - the old verify-only behavior for raw inspection calls.
 // Throws HOOK_STEAL when <minBytes of decodable instructions exist, or
 // HOOK_RELOCATE naming the offending opcode/offset. Returns the stolen bytes
 // so the caller doesn't need a second remote read.
@@ -942,9 +942,9 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
   std::size_t minBytes = 5;
   std::uintptr_t stub = 0;
   // Accepted arg shapes:
-  //   hookSteal(h, a, 5)               — minBytes number
-  //   hookSteal(h, a, 5, stub)         — minBytes + stubAddr (number|bigint)
-  //   hookSteal(h, a, {minBytes, stubAddr}) — options object
+  //   hookSteal(h, a, 5) - minBytes number
+  //   hookSteal(h, a, 5, stub) - minBytes + stubAddr (number|bigint)
+  //   hookSteal(h, a, {minBytes, stubAddr}) - options object
   if (info.Length() > 2) {
     if (info[2].IsNumber()) {
       double m = info[2].As<Napi::Number>().DoubleValue();
@@ -967,7 +967,7 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
       }
     }
   }
-  // An instruction beginning <15 bytes before minBytes can overshoot past it —
+  // An instruction beginning <15 bytes before minBytes can overshoot past it - 
   // read minBytes+15 so no valid tail instruction truncates.
   std::vector<std::uint8_t> buf;
   try {
@@ -986,7 +986,7 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
     err.ThrowAsJavaScriptException();
   };
 
-  // Pass 1: decode — collect each instruction's decode state for relocation.
+  // Pass 1: decode - collect each instruction's decode state for relocation.
   struct StolenInsn {
     std::size_t off;         // offset within buf
     unsigned len;
@@ -1009,14 +1009,14 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
     if (len == 0 || (hs.flags & F_ERROR)) {
       char msg[128];
       std::snprintf(msg, sizeof(msg),
-                    "hookSteal: undecodable instruction at +%zu — refusing to steal", off);
+                    "hookSteal: undecodable instruction at +%zu - refusing to steal", off);
       throwAt("HOOK_STEAL", msg);
       return env.Null();
     }
     if (off + len > buf.size()) {
       char msg[128];
       std::snprintf(msg, sizeof(msg),
-                    "hookSteal: truncated instruction at +%zu — cannot cover %zu bytes", off, minBytes);
+                    "hookSteal: truncated instruction at +%zu - cannot cover %zu bytes", off, minBytes);
       throwAt("HOOK_STEAL", msg);
       return env.Null();
     }
@@ -1028,7 +1028,7 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
     si.opcode2 = hs.opcode2;
     si.ripRel = (hs.flags & F_MODRM) && hs.modrm_mod == 0 && hs.modrm_rm == 5;
     // Field sizes: the immediate/disp land at the tail of the instruction.
-    // imm is the LAST field; disp precedes it — MinHook's offset math:
+    // imm is the LAST field; disp precedes it - MinHook's offset math:
     //   disp field = len - immSize - dispSize  (same as len-((flags&0x3C)>>2)-4)
     si.immSize = (hs.flags & F_IMM64) ? 8 :
                  (hs.flags & F_IMM32) ? 4 :
@@ -1045,14 +1045,14 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
   if (off < minBytes) {
     char msg[128];
     std::snprintf(msg, sizeof(msg),
-                  "hookSteal: only %zu decodable bytes at 0x%llX — need >= %zu",
+                  "hookSteal: only %zu decodable bytes at 0x%llX - need >= %zu",
                   off, static_cast<unsigned long long>(addr), minBytes);
     throwAt("HOOK_STEAL", msg);
     return env.Null();
   }
   const std::size_t stolenLen = off;
 
-  // Pass 2: relocate — rewrite position-relative operands in the copied
+  // Pass 2: relocate - rewrite position-relative operands in the copied
   // bytes. `bytes` becomes the relocated copy (what the caller writes to the
   // stub); `original` keeps the pristine bytes for unhook.
   std::vector<std::uint8_t> original(buf.begin(), buf.begin() + stolenLen);
@@ -1091,18 +1091,18 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
       const std::uintptr_t oldTarget =
           static_cast<std::uintptr_t>(addr + si.off + si.len + oldRel);
       // Internal jump: target lands inside the stolen window. The copy
-      // preserves the operand→target distance — leave the bytes verbatim.
+      // preserves the operand->target distance - leave the bytes verbatim.
       if (oldTarget >= addr && oldTarget < addr + stolenLen) continue;
       if (si.immSize != 4) {
         return refuse("rel8/rel16 external target cannot be widened in place "
-                      "(MinHook refuses LOOP/JECXZ-external too) — hook a "
+                      "(MinHook refuses LOOP/JECXZ-external too) - hook a "
                       "different instruction-aligned site");
       }
       const std::int64_t newRel =
           static_cast<std::int64_t>(oldTarget) -
           (static_cast<std::int64_t>(stub) + si.off + si.len);
       if (newRel < INT32_MIN || newRel > INT32_MAX) {
-        return refuse("rel32 rewrite lands out of ±2GB range from the stub — "
+        return refuse("rel32 rewrite lands out of +/-2GB range from the stub - "
                       "allocate the stub nearer to the branch target");
       }
       const std::int32_t r32 = static_cast<std::int32_t>(newRel);
@@ -1111,7 +1111,7 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
     }
 
     // RIP-relative ModRM memory operand: the disp32 field is the position-
-    // dependent part — rewrite it to reach the same absolute address.
+    // dependent part - rewrite it to reach the same absolute address.
     if (si.ripRel) {
       if (si.dispSize != 4) continue;  // mod=00 rm=101 always disp32
       std::int32_t d32 = 0;
@@ -1123,7 +1123,7 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
           static_cast<std::int64_t>(oldTarget) -
           (static_cast<std::int64_t>(stub) + si.off + si.len);
       if (newDisp < INT32_MIN || newDisp > INT32_MAX) {
-        return refuse("disp32 rewrite lands out of ±2GB range from the stub — "
+        return refuse("disp32 rewrite lands out of +/-2GB range from the stub - "
                       "allocate the stub nearer to the operand target");
       }
       const std::int32_t n32 = static_cast<std::int32_t>(newDisp);
@@ -1144,7 +1144,7 @@ Napi::Value HookStealSync(const Napi::CallbackInfo& info) {
 
 // suspendProcess(pid) / resumeProcess(pid) via undocumented-but-stable
 // NtSuspendProcess / NtResumeProcess exported by ntdll. Atomic whole-process
-// suspend — strictly better than per-thread suspendAll (no TOCTOU where a
+// suspend - strictly better than per-thread suspendAll (no TOCTOU where a
 // new thread spawns mid-enumeration).
 static Napi::Value NtSuspendResume(const Napi::CallbackInfo& info, bool suspend) {
   Napi::Env env = info.Env();
@@ -1153,11 +1153,11 @@ static Napi::Value NtSuspendResume(const Napi::CallbackInfo& info, bool suspend)
     return env.Null();
   }
   DWORD pid = info[0].As<Napi::Number>().Uint32Value();
-  // QA4-C3: suspending OUR OWN process freezes the JS engine — even though
+  // QA4-C3: suspending OUR OWN process freezes the JS engine - even though
   // NtSuspendProcess skips the calling thread, every other thread (including
   // any that would resume us) is suspended and the object can never reach
   // resumeProcess(). Suspend on self-pid is an unrecoverable deadlock; refuse
-  // with a clear error. Resume on self-pid is harmless — it just clears
+  // with a clear error. Resume on self-pid is harmless - it just clears
   // suspend counts on our own threads.
   if (suspend && pid == GetCurrentProcessId()) {
     auto err = Napi::Error::New(env,
@@ -1271,13 +1271,13 @@ Napi::Value WaitForExitAsync(const Napi::CallbackInfo& info) {
 // ---------- findWhatWrites (DebugActiveProcess + HW write breakpoints) ----------
 
 // Hardware breakpoints only deliver their #DB exception to a debugger attached
-// to the TARGET — setting Dr regs without a debug loop just crashes the victim
+// to the TARGET - setting Dr regs without a debug loop just crashes the victim
 // with an unhandled EXCEPTION_SINGLE_STEP. So the CE "find what writes" flow
 // must own a real debugger session: DebugActiveProcess -> arm RW=01 data
 // breakpoints on every thread -> pump WaitForDebugEvent collecting
 // EXCEPTION_SINGLE_STEP hits -> restore Dr regs, ContinueDebugEvent, detach.
 //
-// NOTE on `rip`: a data breakpoint is a *trap* — it fires AFTER the write, so
+// NOTE on `rip`: a data breakpoint is a *trap* - it fires AFTER the write, so
 // the reported address is the instruction FOLLOWING the write, not the writer
 // itself. CE shows the same caveat; disassemble backwards to find the store.
 
@@ -1379,7 +1379,7 @@ public:
   // protected targets. DebugSetProcessKillOnExit(false) keeps the debuggee
   // alive when our process exits while still attached.
   void Execute() override {
-    // Detach completion is asynchronous on Windows — a fresh
+    // Detach completion is asynchronous on Windows - a fresh
     // DebugActiveProcess immediately after DebugActiveProcessStop can return
     // ERROR_ACCESS_DENIED while the kernel tears down the debug port. Retry
     // for up to ~500ms so back-to-back findWhatWrites calls work.
@@ -1399,7 +1399,7 @@ public:
     // QA4-M3 (lifecycle): wrap all post-attach phases so ANY C++ exception
     // (bad_alloc under a flooding target, length_error in hits_/armed_
     // growth) still runs disarm+drain+Stop. Without this the debuggee is
-    // left attached with armed Dr7 breakpoints and suspended threads — the
+    // left attached with armed Dr7 breakpoints and suspended threads - the
     // next write to the watched addr would fire an unhandled #DB and kill it.
     try {
       RunPhases();
@@ -1423,7 +1423,7 @@ public:
     // LOAD_DLLs, CREATE_THREAD per existing thread, initial breakpoint) and
     // arm each reported thread. Threads reported by CREATE_THREAD are already
     // debug-suspended at this point; our suspend/resume pair is balanced so
-    // the bp is on before they can run. Hits are collected here too — a thread
+    // the bp is on before they can run. Hits are collected here too - a thread
     // armed+continued early in this loop can fire while we drain the rest.
     int quietWaits = 0;
     while (quietWaits < 3 && GetTickCount64() < armDeadline &&
@@ -1433,7 +1433,7 @@ public:
       quietWaits = 0;
       ContinueDebugEvent(ev.dwProcessId, ev.dwThreadId, HandleEvent(ev));
     }
-    // Fallback: arm anything the event burst missed (rare — attach reports
+    // Fallback: arm anything the event burst missed (rare - attach reports
     // every thread, but belt-and-suspenders for filtered/racy cases).
     ArmSnapshotThreads();
 
@@ -1446,10 +1446,10 @@ public:
     }
   }
 
-  // Phase 3: disarm every armed thread (restoring ORIGINAL Dr regs — the
+  // Phase 3: disarm every armed thread (restoring ORIGINAL Dr regs - the
   // target may legitimately use its own hw breakpoints), drain pending
   // events, disarm any stragglers hit mid-disarm, drain again, detach.
-  // Everything runs on this thread — DebugActiveProcess/Continue/DebugStop
+  // Everything runs on this thread - DebugActiveProcess/Continue/DebugStop
   // are debugger-thread-bound. Idempotent: runs only while attached_ and is
   // invoked from every Execute() exit path (normal + exception).
   void CleanupDebuggee() {
@@ -1472,7 +1472,7 @@ public:
           CloseHandle(ev.u.CreateProcessInfo.hFile);
         if (ev.dwDebugEventCode == LOAD_DLL_DEBUG_EVENT && ev.u.LoadDll.hFile)
           CloseHandle(ev.u.LoadDll.hFile);
-        // A queued single-step is our bp firing mid-disarm — swallow it
+        // A queued single-step is our bp firing mid-disarm - swallow it
         // (DBG_CONTINUE). A queued genuine exception gets NOT_HANDLED so it
         // reaches the debuggee's SEH as it would without us.
         DWORD disp = DBG_CONTINUE;
@@ -1489,7 +1489,7 @@ public:
     disarmAll();
     drain();      // flush pending bp hits + resume stopped threads
     disarmAll();  // threads stopped on a queued event during pass 1 skipped
-                  // SetThreadContext — disarm them now that they're resumed
+                  // SetThreadContext - disarm them now that they're resumed
     drain();      // release the last stopped threads, empty the port
     DebugActiveProcessStop(pid_);
     attached_ = false;
@@ -1543,7 +1543,7 @@ private:
         const DWORD tid = ev.dwThreadId;
         // QA4-m4: hThread here is system-owned (unlike CREATE_PROCESS's hFile
         // which the debugger must close). Microsoft's debug samples and docs
-        // never close it — the system cleans it up on EXIT_THREAD. Verified:
+        // never close it - the system cleans it up on EXIT_THREAD. Verified:
         // do NOT close; closing could later collide with a recycled handle
         // value the debugger also sees. Disarm uses OpenThread-by-tid anyway.
         HANDLE t = ev.u.CreateThread.hThread;
@@ -1560,7 +1560,7 @@ private:
         return DBG_CONTINUE;
       }
       case EXIT_THREAD_DEBUG_EVENT:
-        // If it was armed there's nothing to restore — the thread is gone.
+        // If it was armed there's nothing to restore - the thread is gone.
         return DBG_CONTINUE;
       case EXIT_PROCESS_DEBUG_EVENT:
         exited_ = true;
@@ -1690,7 +1690,7 @@ Napi::Value FindWhatWritesAsync(const Napi::CallbackInfo& info) {
     if (std::isfinite(m) && m >= 1) maxHits = m > 1024 ? 1024u : static_cast<unsigned>(m);
   }
 
-  // QA4-H7: CONTEXT/Dr registers use the x64 struct — on a WoW64 (32-bit)
+  // QA4-H7: CONTEXT/Dr registers use the x64 struct - on a WoW64 (32-bit)
   // target Get/SetThreadContext operate on WOW64_CONTEXT and the arm would
   // silently corrupt the debuggee or never fire. Refuse up front (same
   // pattern as injectDll).

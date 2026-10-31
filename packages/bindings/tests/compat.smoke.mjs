@@ -1,10 +1,10 @@
-﻿import test from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// Full API compat smoke per Node version: not just "the .node loads" â€” exercise
+// Full API compat smoke per Node version: not just "the .node loads" -- exercise
 // the real N-API paths (RPM/WPM/alloc/pattern-scan/CreateRemoteThread) against
 // the test process itself, so no external victim is needed.
 const ACCESS = 0x0010 | 0x0020 | 0x0008 | 0x0400 | 0x0002; // VM_READ|VM_WRITE|VM_OP|QUERY|CREATE_THREAD
