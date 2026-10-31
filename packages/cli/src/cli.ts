@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * @memoryprocess/cli — `mproc`
+ * @memoryprocess/cli -- `mproc`
  *
  * The Process API as composable commands. `--json` on every command emits the
- * machine contract from docs/json-conventions.md (bigint → '0x…' hex strings,
+ * machine contract from docs/json-conventions.md (bigint -> '0x...' hex strings,
  * scan hits as NDJSON, {ok,error:{code}} envelope); without it, a compact
  * human table. `mproc attach <pid>` holds a Process open and takes commands on
- * stdin — that's the agentic session surface.
+ * stdin -- that's the agentic session surface.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

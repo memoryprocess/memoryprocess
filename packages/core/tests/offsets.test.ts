@@ -69,7 +69,7 @@ describe('findWhatWrites', () => {
     const after = proc.readInt32(victim.addr.g_counter);
     expect(after).toBeGreaterThan(before); // counter still increments
     // A second attach proves the first detached cleanly (a process can only
-    // have ONE debugger — if still attached this would fail or return []).
+    // have ONE debugger -- if still attached this would fail or return []).
     const hits = await proc.findWhatWrites(victim.addr.g_counter, {
       timeoutMs: 300,
     });
@@ -79,7 +79,7 @@ describe('findWhatWrites', () => {
     expect(tids.length).toBeGreaterThanOrEqual(1);
     for (const tid of tids) {
       const ctx = proc.getThreadContext(tid);
-      // all Dr7 local/global enable bits (bits 0..7) must be clear — our
+      // all Dr7 local/global enable bits (bits 0..7) must be clear -- our
       // write breakpoint was disarmed and originals restored
       expect(ctx!.dr7 & 0xffn).toBe(0n);
     }

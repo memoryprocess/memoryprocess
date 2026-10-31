@@ -9,7 +9,7 @@
  * Type names: i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr
  *
  * The narrow ints (i8|u8|i16|u16) are CLI-level pseudo-types: core has no
- * readInt8/writeInt8 — commands.ts reads/writes them via readBuffer +
+ * readInt8/writeInt8 -- commands.ts reads/writes them via readBuffer +
  * Buffer LE (de)coding, the same way it already handles u8/u16.
  */
 import type { Process, ScanValueType, WriteValueType } from './core.js';
@@ -22,7 +22,7 @@ export class UsageError extends Error {
   }
 }
 
-/** Integer literal → number when safe, bigint when it needs >2^53. */
+/** Integer literal -> number when safe, bigint when it needs >2^53. */
 export function parseIntArg(s: string, name = 'value'): number | bigint {
   const t = s.trim();
   if (!/^[+-]?(0x[0-9a-fA-F]+|\d+)$/.test(t))
@@ -32,7 +32,7 @@ export function parseIntArg(s: string, name = 'value'): number | bigint {
   return b <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(b) : b;
 }
 
-/** Numeric value for a type — floats parse as double, ints as above. */
+/** Numeric value for a type -- floats parse as double, ints as above. */
 export function parseValue(s: string, type: string): number | bigint {
   if (
     type === 'f32' ||
@@ -56,18 +56,18 @@ export function parseAddr(proc: Process, s: string): bigint {
   const t = s.trim();
   if (/^[+-]?(0x[0-9a-fA-F]+|\d+)$/.test(t)) return BigInt(t);
   if (!/^[A-Za-z0-9_.\-]+(\+0x[0-9a-fA-F]+|\+\d+)?$/.test(t))
-    throw new UsageError(`address: expected 0x…|decimal|mod+rva, got '${s}'`);
+    throw new UsageError(`address: expected 0x...|decimal|mod+rva, got '${s}'`);
   const a = proc.addr(t).resolve();
   return a;
 }
 
 /**
- * Narrow int pseudo-types — not core WriteValueTypes; commands.ts
+ * Narrow int pseudo-types -- not core WriteValueTypes; commands.ts
  * reads/writes them through readBuffer + Buffer LE (de)coding.
  */
 export type NarrowType = 'i8' | 'u8' | 'i16' | 'u16';
 
-/** Byte width of a parsed scalar — used for pre-write journal snapshots. */
+/** Byte width of a parsed scalar -- used for pre-write journal snapshots. */
 export const TYPE_WIDTHS: Record<WriteValueType | NarrowType, number> = {
   i8: 1,
   u8: 1,
@@ -82,7 +82,7 @@ export const TYPE_WIDTHS: Record<WriteValueType | NarrowType, number> = {
   pointer: 8,
 };
 
-/** CLI type name → core WriteValueType or a narrow pseudo-type. */
+/** CLI type name -> core WriteValueType or a narrow pseudo-type. */
 export const TYPE_MAP: Record<string, WriteValueType | NarrowType> = {
   i8: 'i8',
   u8: 'u8',
@@ -111,7 +111,7 @@ export function parseType(s: string | undefined): ParsedType {
   if (m) {
     const n = Number(m[1]);
     if (!Number.isInteger(n) || n < 1 || n > 1 << 20)
-      throw new UsageError(`bytes:N — N must be 1..1048576, got ${m[1]}`);
+      throw new UsageError(`bytes:N -- N must be 1..1048576, got ${m[1]}`);
     return { kind: 'bytes', n };
   }
   if (t === 'str') return { kind: 'str' };
@@ -119,13 +119,13 @@ export function parseType(s: string | undefined): ParsedType {
   const core = TYPE_MAP[t];
   if (!core)
     throw new UsageError(
-      `unknown type '${s}' — use i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr`,
+      `unknown type '${s}' -- use i8|u8|i16|u16|i32|u32|i64|u64|f32|f64|ptr|bytes:N|str|wstr`,
     );
   return { kind: 'scalar', core };
 }
 
 /**
- * Scalar types readValueAt accepts — everything TYPE_MAP knows minus the
+ * Scalar types readValueAt accepts -- everything TYPE_MAP knows minus the
  * narrow pseudo-types (i8|u8|i16|u16) which readValueAt would reject.
  */
 export const READVALUE_TYPES = new Set<string>([
@@ -148,7 +148,7 @@ const VALID_SCAN_TYPES: readonly ScanValueType[] = [
   'double',
 ];
 
-/** Scan-capable type → core ScanValueType (narrows + ptr are not scannable). */
+/** Scan-capable type -> core ScanValueType (narrows + ptr are not scannable). */
 export function parseScanType(s: string | undefined): ScanValueType {
   const p = parseType(s ?? 'i32');
   if (
@@ -174,23 +174,23 @@ export function parsePointerDef(arg: string): {
   const ci = arg.indexOf(':');
   if (ci < 1)
     throw new UsageError(
-      `pointer def '${arg}' — expected 'name:base,off,off…'`,
+      `pointer def '${arg}' -- expected 'name:base,off,off...'`,
     );
   const name = arg.slice(0, ci).trim();
-  if (!name) throw new UsageError(`pointer def '${arg}' — empty name`);
+  if (!name) throw new UsageError(`pointer def '${arg}' -- empty name`);
   const parts = arg
     .slice(ci + 1)
     .split(',')
     .map((p) => p.trim())
     .filter((p) => p.length > 0);
   if (parts.length === 0)
-    throw new UsageError(`pointer def '${arg}' — no base/offsets`);
+    throw new UsageError(`pointer def '${arg}' -- no base/offsets`);
   const base = parts[0]!;
   const chain = parts.slice(1).map((p) => {
     const v = parseIntArg(p, `offset in '${arg}'`);
     const n = Number(v);
     if (!Number.isInteger(n))
-      throw new UsageError(`offset '${p}' in '${arg}' — must be an integer`);
+      throw new UsageError(`offset '${p}' in '${arg}' -- must be an integer`);
     return n;
   });
   return { name, base, chain };
@@ -207,7 +207,7 @@ export interface Flags {
   module?: string;
   start?: string;
   end?: string;
-  /** remaining unknown flags → error */
+  /** remaining unknown flags -> error */
   rest: string[];
 }
 

@@ -1,5 +1,5 @@
 /**
- * Cross-invocation state — what makes one-shot `mproc` commands composable.
+ * Cross-invocation state -- what makes one-shot `mproc` commands composable.
  *
  * Two artifacts, both under `.mproc/` in the CURRENT working directory (a
  * per-directory workspace, like .git):
@@ -8,7 +8,7 @@
  *   .mproc/journal-<pid>.json  write journal for `undo`: [{addr,bytes(hex)}]
  *
  * Rationale: writeLog lives on a Process instance and dies with it. Persisting
- * the journaled pre-write bytes makes `mproc write` → `mproc undo` work across
+ * the journaled pre-write bytes makes `mproc write` -> `mproc undo` work across
  * separate invocations (and across attach sessions), which is the CLI's
  * self-correction primitive.
  */
@@ -31,8 +31,8 @@ export function journalPath(pid: number): string {
 }
 
 export interface StoredHit {
-  addr: string; // '0x…'
-  value: number | string; // number, or '0x…' hex string for 64-bit
+  addr: string; // '0x...'
+  value: number | string; // number, or '0x...' hex string for 64-bit
 }
 export interface ScanState {
   pid: number;
@@ -51,7 +51,7 @@ export function loadScan(path: string): ScanState {
   } catch {
     throw Object.assign(
       new Error(
-        `scan state not found: ${path} — run 'mproc scan <pid> <value>' first`,
+        `scan state not found: ${path} -- run 'mproc scan <pid> <value>' first`,
       ),
       { code: 'STATE_NOT_FOUND' },
     );
@@ -65,7 +65,7 @@ export function loadScan(path: string): ScanState {
 }
 
 export interface JournalEntry {
-  addr: string; // '0x…'
+  addr: string; // '0x...'
   /** hex string of prior bytes, or null when the pre-write snapshot failed */
   bytes: string | null;
 }

@@ -1,18 +1,18 @@
 /**
- * `mproc attach <pid> [--json]` — the session surface.
+ * `mproc attach <pid> [--json]` -- the session surface.
  *
- * Holds one Process open and reads commands from stdin, one per line — the
+ * Holds one Process open and reads commands from stdin, one per line -- the
  * same grammar as top-level `mproc`, minus the `mproc` prefix and the pid
  * positionals (the session pid is implied; a leading pid matching the
  * session's is tolerated and ignored so scripts can be reused verbatim).
  *
  * This is how an agent iterates: spawn `mproc attach <pid> --json`, write
- * `describe`, `scan 100`, `read 0x… i32`, `write 0x… u32 99`, `undo` lines,
+ * `describe`, `scan 100`, `read 0x... i32`, `write 0x... u32 99`, `undo` lines,
  * read one result per line. `exit`/`quit`/EOF closes the handle and exits.
  * Also reachable interactively (prompt `mproc[pid]>` on a TTY).
  *
  * Session state that DOESN'T fit in a file lives here: proc.writeLog/undo,
- * watch()/freeze() timers stay live between commands — timers are per-command
+ * watch()/freeze() timers stay live between commands -- timers are per-command
  * processes in one-shot mode but interval timers inside an attach session
  * keep running until `unwatch`/`unfreeze`/`exit`.
  */
@@ -61,7 +61,7 @@ async function sessionCommand(
             });
           else
             process.stdout.write(
-              `\n${hex(addr)}: ${old} → ${nw}\n${promptFor(proc)}`,
+              `\n${hex(addr)}: ${old} -> ${nw}\n${promptFor(proc)}`,
             );
         },
         ms,
@@ -98,7 +98,7 @@ async function sessionCommand(
           ? BigInt(v)
           : Number(v);
       const id = freezes.size + 1;
-      // narrow types: same re-write loop over writeNarrow — freeze() itself
+      // narrow types: same re-write loop over writeNarrow -- freeze() itself
       // only speaks 4/8-byte core types.
       const stop = isNarrow(p.core)
         ? (() => {
@@ -108,7 +108,7 @@ async function sessionCommand(
                   dryRun: false,
                 });
               } catch {
-                /* closed or unwritable — ignore */
+                /* closed or unwritable -- ignore */
               }
             }, ms);
             timer.unref();
@@ -131,7 +131,7 @@ async function sessionCommand(
       return false;
     }
     default:
-      return false; // not a session command — fall through to runCommand
+      return false; // not a session command -- fall through to runCommand
   }
 }
 
@@ -146,7 +146,7 @@ export async function attach(pid: number, json: boolean): Promise<number> {
     emitLine({ type: 'attached', pid: proc.pid, modules: mods });
   } else {
     console.error(
-      `attached to pid ${proc.pid} (${mods} modules) — commands like 'read 0x… i32', 'scan 100', 'undo'. 'exit' quits.`,
+      `attached to pid ${proc.pid} (${mods} modules) -- commands like 'read 0x... i32', 'scan 100', 'undo'. 'exit' quits.`,
     );
   }
 
@@ -179,7 +179,7 @@ export async function attach(pid: number, json: boolean): Promise<number> {
       try {
         const handled = await sessionCommand(proc, json, args);
         if (!handled) {
-          // session --json forces machine output for every inner command —
+          // session --json forces machine output for every inner command --
           // the user shouldn't retype --json per line.
           await runCommand(json ? [...args, '--json'] : args, proc);
         }

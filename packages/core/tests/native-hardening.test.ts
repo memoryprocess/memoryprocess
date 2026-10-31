@@ -1,5 +1,5 @@
 /**
- * native-hardening â€” QA4 critical/high fixes, exercised through BOTH the
+ * native-hardening -- QA4 critical/high fixes, exercised through BOTH the
  * public Process API and the raw `native` binding (for the additive exports
  * the TS layer may not have wired into its interface yet).
  *
@@ -9,13 +9,13 @@
  *   C2  hookSteal relocates rel32/RIP-rel operands when given stubAddr;
  *       external rel8/LOOP/JECXZ still refused; inspection mode (no
  *       stubAddr) refuses all position-relative instrs
- *   C4  ejectDll: kernel32 (FreeLibrary FALSE) â†’ InjectError; unknown â†’ error;
- *       double-eject â†’ error; base=0 â†’ error
- *   H1  callRemote negative/huge timeoutMs â†’ RangeError (no INFINITE wrap);
- *       waitForExit(-1) â†’ RangeError
+ *   C4  ejectDll: kernel32 (FreeLibrary FALSE) -> InjectError; unknown -> error;
+ *       double-eject -> error; base=0 -> error
+ *   H1  callRemote negative/huge timeoutMs -> RangeError (no INFINITE wrap);
+ *       waitForExit(-1) -> RangeError
  *   M1  native writeProtectedMemory restores EACH region's own protection
- *   M2  injectDll relative path / >32767 chars â†’ error; absolute still works
- *   fWW findWhatWrites WoW64 guard added (code path untestable x64â†”x64);
+ *   M2  injectDll relative path / >32767 chars -> error; absolute still works
+ *   fWW findWhatWrites WoW64 guard added (code path untestable x64--->"x64);
  *       detach leaves the debuggee running
  *
  * IMPORTANT: run `taskkill /F /IM victim.exe` before `bun test`.
@@ -33,7 +33,7 @@ const dllPath = join(dir, 'testdll.dll');
 const srcIndex = pathToFileURL(join(dir, '..', 'src', 'index.js')).href;
 const BUN = Bun.which('bun') ?? 'bun';
 
-// New exports are additive â€” not yet declared on the Native interface (the
+// New exports are additive -- not yet declared on the Native interface (the
 // TS-layer agent owns native.ts). Cast to access them.
 const nat = native as any;
 
@@ -64,7 +64,7 @@ function probe<T>(fn: () => T): { threw: boolean; err?: Error; val?: T } {
 }
 async function injectAndWait(p: Process): Promise<number | null> {
   p.injectDll(dllPath);
-  // Use the native binding rather than p.module() â€” the latter's cache-miss
+  // Use the native binding rather than p.module() -- the latter's cache-miss
   // path is mid-refactor in the TS layer and can throw while iterating.
   for (let i = 0; i < 40; i++) {
     const mods = nat.getModules(rawHandle, p.pid) as {
@@ -92,7 +92,7 @@ function runSub(
   return { hung, out };
 }
 
-/* ================= C3 â€” self-suspend ================= */
+/* ================= C3 -- self-suspend ================= */
 describe('C3 self-suspend refused', () => {
   test('suspendProcess(own pid) throws SELF_SUSPEND, does not hang', () => {
     using self = Process.open(process.pid);
@@ -108,23 +108,23 @@ describe('C3 self-suspend refused', () => {
     expect(self.resumeProcess()).toBe(true);
   });
 
-  test('suspendThread(currentThreadId) returns false â€” never hangs', () => {
+  test('suspendThread(currentThreadId) returns false -- never hangs', () => {
     const tid = (nat.currentThreadId as () => number)();
     expect(nat.suspendThread(tid)).toBe(false);
   });
 
-  test('suspendAll() on own pid â†’ SELF_SUSPEND (refused) â€” subprocess', () => {
+  test('suspendAll() on own pid -> SELF_SUSPEND (refused) -- subprocess', () => {
     const r = runSub(
       `import {Process} from ${JSON.stringify(srcIndex)};` +
         `try{const p=Process.open(process.pid);p.suspendAll();console.log('NO_THROW')}catch(e){console.log('CODE',e.code)}`,
     );
-    // TS-layer refuses outright â€” self-suspend deadlocks the host.
+    // TS-layer refuses outright -- self-suspend deadlocks the host.
     expect(r.hung).toBe(false);
     expect(r.out).toContain('SELF_SUSPEND');
   });
 });
 
-/* ================= C2 â€” hookSteal relocation ================= */
+/* ================= C2 -- hookSteal relocation ================= */
 describe('C2 hookSteal position-relative handling', () => {
   test('inspection mode (no stubAddr): rel instrs still refused', () => {
     const PAGE = Protection.PAGE_EXECUTE_READWRITE;
@@ -140,7 +140,7 @@ describe('C2 hookSteal position-relative handling', () => {
         name: '74 rel8 jcc',
         bytes: [0x74, 0x7f, 0x90, 0x90, 0x90, 0x90, 0xc3],
       },
-      // 48 8B 05 <disp32> = mov rax,[rip+disp32] â€” RIP-relative ModRM
+      // 48 8B 05 <disp32> = mov rax,[rip+disp32] -- RIP-relative ModRM
       {
         name: 'RIP-rel mov rax,[rip+..]',
         bytes: [0x48, 0x8b, 0x05, 0x10, 0, 0, 0, 0xc3],
@@ -158,7 +158,7 @@ describe('C2 hookSteal position-relative handling', () => {
     }
   });
 
-  test('with stubAddr: E8/E9/0F84/RIP-rel RELOCATE â€” operand rewritten', () => {
+  test('with stubAddr: E8/E9/0F84/RIP-rel RELOCATE -- operand rewritten', () => {
     const PAGE = Protection.PAGE_EXECUTE_READWRITE;
     const cases: {
       name: string;
@@ -189,7 +189,7 @@ describe('C2 hookSteal position-relative handling', () => {
       proc.free(a);
       proc.free(stub);
       expect(r.length).toBeGreaterThanOrEqual(5);
-      // The rewritten operand must differ from the original â€” it now points
+      // The rewritten operand must differ from the original -- it now points
       // from stubPos+len to the same absolute target.
       expect(r.bytes.readInt32LE(c.opOff), c.name).not.toBe(0x10);
     }
@@ -229,7 +229,7 @@ describe('C2 hookSteal position-relative handling', () => {
     }
   });
 
-  test('relocated rel32 call still reaches its target â€” functional', () => {
+  test('relocated rel32 call still reaches its target -- functional', () => {
     const PAGE = Protection.PAGE_EXECUTE_READWRITE;
     const page = proc.alloc(0x400, PAGE);
     try {
@@ -247,7 +247,7 @@ describe('C2 hookSteal position-relative handling', () => {
       expect(proc.callRemote(fn, 0)).toBe(42); // baseline: call works
       const h = proc.hook(fn, hook);
       expect(proc.callRemote(fn, 0)).toBe(99); // diverted
-      // The stub's relocated E8 must still call `callee` â€” running the stub
+      // The stub's relocated E8 must still call `callee` -- running the stub
       // directly returns 42 (eax survives as the thread exit code).
       expect(proc.callRemote(h.stub, 0)).toBe(42);
       expect(proc.unhook(h)).toBe(true);
@@ -261,7 +261,7 @@ describe('C2 hookSteal position-relative handling', () => {
     const PAGE = Protection.PAGE_EXECUTE_READWRITE;
     const page = proc.alloc(0x400, PAGE);
     try {
-      const fn = page; // mov rax,[rip+disp]; ret â€” reads qword at page+0x40
+      const fn = page; // mov rax,[rip+disp]; ret -- reads qword at page+0x40
       const hook = page + 0x100n;
       const data = page + 0x40n;
       proc.writeBuffer(
@@ -269,13 +269,13 @@ describe('C2 hookSteal position-relative handling', () => {
         Buffer.from([0xef, 0xbe, 0xad, 0x0b, 0, 0, 0, 0]), // 0x0BADBEEF
       );
       const code = Buffer.from([0x48, 0x8b, 0x05, 0, 0, 0, 0, 0xc3]);
-      code.writeInt32LE(Number(data - (fn + 7n)), 3); // disp32 â†’ data
+      code.writeInt32LE(Number(data - (fn + 7n)), 3); // disp32 -> data
       proc.writeBuffer(fn, code);
       proc.writeBuffer(hook, Buffer.from([0xb8, 0x63, 0, 0, 0, 0xc3]));
 
       const h = proc.hook(fn, hook);
-      // Stub executes relocated mov â†’ eax = 0x0BADBEEF read from the ORIGINAL
-      // data address, then back-jump â†’ ret. Exit code = eax.
+      // Stub executes relocated mov -> eax = 0x0BADBEEF read from the ORIGINAL
+      // data address, then back-jump -> ret. Exit code = eax.
       expect(proc.callRemote(h.stub, 0)).toBe(0x0badbeef);
       proc.unhook(h);
     } finally {
@@ -289,7 +289,7 @@ describe('C2 hookSteal position-relative handling', () => {
     try {
       const fn = page;
       const hook = page + 0x100n;
-      // EB 01 (jmp +1 over the nop) â†’ mov eax,42; ret â€” the branch target is
+      // EB 01 (jmp +1 over the nop) -> mov eax,42; ret -- the branch target is
       // INSIDE the stolen window, so a verbatim copy stays correct.
       proc.writeBuffer(
         fn,
@@ -298,7 +298,7 @@ describe('C2 hookSteal position-relative handling', () => {
       proc.writeBuffer(hook, Buffer.from([0xb8, 0x63, 0, 0, 0, 0xc3]));
       const h = proc.hook(fn, hook);
       expect(h.stolen.length).toBe(8);
-      // Stub: EB 01 skips the copied nop, mov eax,42 runs, back-jump â†’ ret.
+      // Stub: EB 01 skips the copied nop, mov eax,42 runs, back-jump -> ret.
       expect(proc.callRemote(h.stub, 0)).toBe(42);
       proc.unhook(h);
     } finally {
@@ -306,7 +306,7 @@ describe('C2 hookSteal position-relative handling', () => {
     }
   });
 
-  test('safe prologue bytes â†’ returns length>=5 + bytes', () => {
+  test('safe prologue bytes -> returns length>=5 + bytes', () => {
     // push rbp (55); mov rbp,rsp (48 89 E5); sub rsp,0x10 (48 83 EC 10); ret
     const a = proc.alloc(0x100, Protection.PAGE_EXECUTE_READWRITE);
     proc.writeBuffer(
@@ -325,7 +325,7 @@ describe('C2 hookSteal position-relative handling', () => {
 
   test('our own E9 patch is relocatable, but Process refuses re-hooking (HOOK_ALREADY)', () => {
     // Native level: an E9 at src with stubAddr relocates fine (legit jmp
-    // thunks must be hookable) â€” double-hook protection lives in process.ts.
+    // thunks must be hookable) -- double-hook protection lives in process.ts.
     const a = proc.alloc(0x100, Protection.PAGE_EXECUTE_READWRITE);
     const stub = proc.alloc(0x100, Protection.PAGE_EXECUTE_READWRITE);
     proc.writeBuffer(
@@ -341,13 +341,13 @@ describe('C2 hookSteal position-relative handling', () => {
     proc.free(stub);
   });
 
-  test('hook(f+1 mid-instruction) â†’ HOOK_MISALIGNED (backward disasm catches it)', () => {
+  test('hook(f+1 mid-instruction) -> HOOK_MISALIGNED (backward disasm catches it)', () => {
     const PAGE = Protection.PAGE_EXECUTE_READWRITE;
     const page = proc.alloc(0x400, PAGE);
     try {
       // fn mid-page so the 16-byte back-window is readable. Prefix it with
       // 16 nops so backward disasm lands cleanly on fn as a real boundary,
-      // then `mov eax,42` (5B) at fn ends at fn+5 â€” hooking fn+1 is inside
+      // then `mov eax,42` (5B) at fn ends at fn+5 -- hooking fn+1 is inside
       // its imm32. dst: valid code elsewhere in the page.
       const fn = page + 0x200n;
       const dst = page + 0x100n;
@@ -365,10 +365,10 @@ describe('C2 hookSteal position-relative handling', () => {
   });
 });
 
-/* ================= C4 â€” ejectDll result + WoW64 ================= */
+/* ================= C4 -- ejectDll result + WoW64 ================= */
 describe('C4 ejectDll hardened', () => {
-  test('native ejectDll(base=0) â†’ INJECT_FAILED (FreeLibrary FALSE checked)', () => {
-    // FreeLibrary(NULL) returns FALSE â€” before the exit-code check this
+  test('native ejectDll(base=0) -> INJECT_FAILED (FreeLibrary FALSE checked)', () => {
+    // FreeLibrary(NULL) returns FALSE -- before the exit-code check this
     // reported success. Now throws INJECT_FAILED at the native boundary.
     const r = probe(() => nat.ejectDll(proc.pid, 0));
     expect(r.threw).toBe(true);
@@ -376,19 +376,19 @@ describe('C4 ejectDll hardened', () => {
     expect(proc.readInt32(victim.addr.g_i32)).toBe(0x12345678);
   });
 
-  test('native ejectDll(bogus base) â†’ INJECT_FAILED', () => {
+  test('native ejectDll(bogus base) -> INJECT_FAILED', () => {
     const r = probe(() => nat.ejectDll(proc.pid, 0xdead0000));
     expect(r.threw).toBe(true);
     expect((r.err as any)?.code).toBe('INJECT_FAILED');
   });
 
-  test('ejectDll(never-loaded name) â†’ InjectError module-not-found', () => {
+  test('ejectDll(never-loaded name) -> InjectError module-not-found', () => {
     const r = probe(() => proc.ejectDll('definitely-not-loaded-xyz.dll'));
     expect(r.threw).toBe(true);
     expect(r.err).toBeInstanceOf(InjectError);
   });
 
-  test('double eject â†’ second throws (module already gone)', async () => {
+  test('double eject -> second throws (module already gone)', async () => {
     const base = await injectAndWait(proc);
     expect(base).not.toBeNull();
     expect(proc.ejectDll('testdll.dll')).toBe(true);
@@ -398,16 +398,16 @@ describe('C4 ejectDll hardened', () => {
     expect(r.err).toBeInstanceOf(InjectError);
   });
 
-  test('ejectDll({base:0}) â†’ InjectError, not silent true', () => {
+  test('ejectDll({base:0}) -> InjectError, not silent true', () => {
     const r = probe(() => proc.ejectDll({ base: 0 } as any));
     expect(r.threw).toBe(true);
     expect(r.err).toBeInstanceOf(InjectError);
   });
 });
 
-/* ================= M2 â€” injectDll path rules ================= */
+/* ================= M2 -- injectDll path rules ================= */
 describe('M2 injectDll path hardening', () => {
-  test('native injectDll(relative path) â†’ INJECT_FAILED', () => {
+  test('native injectDll(relative path) -> INJECT_FAILED', () => {
     const r = probe(() => nat.injectDll(proc.pid, 'testdll.dll'));
     expect(r.threw).toBe(true);
     expect((r.err as any)?.code ?? r.err?.message).toMatch(
@@ -415,13 +415,13 @@ describe('M2 injectDll path hardening', () => {
     );
   });
 
-  test('native injectDll(>32767-char path) â†’ error', () => {
+  test('native injectDll(>32767-char path) -> error', () => {
     const long = 'C:\\' + 'a'.repeat(32800) + '\\x.dll';
     const r = probe(() => nat.injectDll(proc.pid, long));
     expect(r.threw).toBe(true);
   });
 
-  test('public injectDll(absolute testdll) still works â€” LoadLibraryW', async () => {
+  test('public injectDll(absolute testdll) still works -- LoadLibraryW', async () => {
     const base = await injectAndWait(proc);
     expect(base).not.toBeNull();
     try {
@@ -432,27 +432,27 @@ describe('M2 injectDll path hardening', () => {
   });
 });
 
-/* ================= H1 â€” callRemote/waitForExit timeout validation ===== */
+/* ================= H1 -- callRemote/waitForExit timeout validation ===== */
 describe('H1 timeoutMs validation', () => {
-  test('callRemote(timeout=-1) â†’ throws, no INFINITE wrap', () => {
-    // TS validates first (TypeError) â€” native defense-in-depth throws
+  test('callRemote(timeout=-1) -> throws, no INFINITE wrap', () => {
+    // TS validates first (TypeError) -- native defense-in-depth throws
     // RangeError if reached. Either way: must throw, never hang.
     const r = probe(() => proc.callRemote(victim.addr.g_i32, 0, -1));
     expect(r.threw).toBe(true);
     expect(r.err).toBeInstanceOf(Error);
   });
 
-  test('callRemote(timeout=1e9) â†’ throws', () => {
+  test('callRemote(timeout=1e9) -> throws', () => {
     const r = probe(() => proc.callRemote(victim.addr.g_i32, 0, 1e9));
     expect(r.threw).toBe(true);
   });
 
-  test('callRemote(timeout=NaN) â†’ throws', () => {
+  test('callRemote(timeout=NaN) -> throws', () => {
     const r = probe(() => proc.callRemote(victim.addr.g_i32, 0, NaN));
     expect(r.threw).toBe(true);
   });
 
-  test('native callRemote(timeout=-1) â†’ RangeError (defense in depth)', () => {
+  test('native callRemote(timeout=-1) -> RangeError (defense in depth)', () => {
     const r = probe(() =>
       nat.callRemote(proc.pid, Number(victim.addr.g_i32), 0, -1),
     );
@@ -460,16 +460,16 @@ describe('H1 timeoutMs validation', () => {
     expect(r.err).toBeInstanceOf(RangeError);
   });
 
-  test('callRemote(timeout=0) â†’ returns quickly', () => {
+  test('callRemote(timeout=0) -> returns quickly', () => {
     const t0 = Date.now();
     const r = proc.callRemote(victim.addr.g_i32, 0, 0);
     expect(Date.now() - t0).toBeLessThan(3000);
     expect(r === null || typeof r === 'number').toBe(true);
   });
 
-  test('waitForExit(timeout=-1) â†’ throws/rejects', async () => {
+  test('waitForExit(timeout=-1) -> throws/rejects', async () => {
     // May throw synchronously (native binding validates before Queue) or
-    // reject the promise â€” either is correct; must not silently wait.
+    // reject the promise -- either is correct; must not silently wait.
     let threw = false;
     try {
       await proc.waitForExit(-1);
@@ -480,7 +480,7 @@ describe('H1 timeoutMs validation', () => {
   });
 });
 
-/* ============ M1 â€” writeProtectedMemory per-region restore ============ */
+/* ============ M1 -- writeProtectedMemory per-region restore ============ */
 describe('M1 writeProtectedMemory per-page restore', () => {
   test('write spanning two differently-protected pages restores EACH', () => {
     // alloc 2 pages; demote page2 to READWRITE while page1 stays EXECUTE_READWRITE
@@ -501,7 +501,7 @@ describe('M1 writeProtectedMemory per-page restore', () => {
     expect(r.ok).toBe(true);
     expect(r.restored).toBe(true);
 
-    // Each page must get ITS OWN original protection back â€” the old TS impl
+    // Each page must get ITS OWN original protection back -- the old TS impl
     // restored page1's prot over BOTH pages.
     expect(proc.queryAddress(a)!.protection).toBe(before1);
     expect(proc.queryAddress(page2)!.protection).toBe(before2);
@@ -514,7 +514,7 @@ describe('M1 writeProtectedMemory per-page restore', () => {
     proc.free(a);
   });
 
-  test('empty buffer â†’ ok:true no-op', () => {
+  test('empty buffer -> ok:true no-op', () => {
     const a = proc.alloc(0x1000, Protection.PAGE_READWRITE);
     const r = nat.writeProtectedMemory(
       rawHandle,
@@ -528,7 +528,7 @@ describe('M1 writeProtectedMemory per-page restore', () => {
   });
 });
 
-/* ============ findWhatWrites â€” detach leaves debuggee running ============ */
+/* ============ findWhatWrites -- detach leaves debuggee running ============ */
 describe('findWhatWrites detach (no residual debuggee)', () => {
   test('runs to completion and victim keeps running', async () => {
     Process.enableDebugPrivilege();
@@ -541,7 +541,7 @@ describe('findWhatWrites detach (no residual debuggee)', () => {
     expect(Array.isArray(hits)).toBe(true);
     await sleep(300);
     const after = proc.readInt32(victim.addr.g_counter);
-    // counter thread must keep running â€” proves disarm+drain+detach left no
+    // counter thread must keep running -- proves disarm+drain+detach left no
     // suspended/armed debuggee behind (cleanup path incl. exceptions).
     expect(after).toBeGreaterThanOrEqual(before);
   });

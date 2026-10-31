@@ -11,7 +11,7 @@ afterAll(() => {
 });
 
 // x64 byte streams used throughout
-const MOV_RAX_RIP = [0x48, 0x8b, 0x05, 0x11, 0x22, 0x33, 0x44]; // mov rax,[rip+disp] — 7B
+const MOV_RAX_RIP = [0x48, 0x8b, 0x05, 0x11, 0x22, 0x33, 0x44]; // mov rax,[rip+disp] -- 7B
 const RET_42 = [0xb8, 0x2a, 0x00, 0x00, 0x00, 0xc3]; // mov eax,42; ret
 const RET_0x1234 = [0xb8, 0x34, 0x12, 0x00, 0x00, 0xc3]; // mov eax,0x1234; ret
 const RET_99 = [0xb8, 0x63, 0x00, 0x00, 0x00, 0xc3]; // mov eax,99; ret
@@ -23,13 +23,13 @@ describe('disassemble', () => {
     try {
       const bytes = Buffer.from([
         ...MOV_RAX_RIP, // 7B
-        0x90, // nop — 1B
-        0x55, // push rbp — 1B
+        0x90, // nop -- 1B
+        0x55, // push rbp -- 1B
         0x48,
         0x83,
         0xec,
-        0x28, // sub rsp,0x28 — 4B
-        0xc3, // ret — 1B
+        0x28, // sub rsp,0x28 -- 4B
+        0xc3, // ret -- 1B
       ]);
       proc.writeBuffer(addr, bytes);
 
@@ -67,19 +67,19 @@ describe('patchCall', () => {
 });
 
 describe('execShellcode', () => {
-  test('mov eax,42; ret → exit code 42', () => {
+  test('mov eax,42; ret -> exit code 42', () => {
     using proc = Process.open(victim.pid);
     expect(proc.execShellcode(Buffer.from(RET_42))).toBe(42);
   });
 
-  test('mov eax,0x1234; ret → exit code 0x1234', () => {
+  test('mov eax,0x1234; ret -> exit code 0x1234', () => {
     using proc = Process.open(victim.pid);
     expect(proc.execShellcode(Buffer.from(RET_0x1234))).toBe(0x1234);
   });
 });
 
 describe('hook / unhook', () => {
-  test('round-trip: callRemote runs target → hook diverts → unhook restores', () => {
+  test('round-trip: callRemote runs target -> hook diverts -> unhook restores', () => {
     using proc = Process.open(victim.pid);
     const addr = proc.alloc(0x1000, Protection.EXECUTE_READWRITE);
     try {
@@ -108,14 +108,14 @@ describe('hook / unhook', () => {
     }
   });
 
-  test('steals whole instructions — 10-byte lead instr is not split', () => {
+  test('steals whole instructions -- 10-byte lead instr is not split', () => {
     using proc = Process.open(victim.pid);
     const addr = proc.alloc(0x1000, Protection.EXECUTE_READWRITE);
     try {
       const h2 = addr;
       const g = addr + 0x100n;
       // first instruction is 10 bytes (mov rax,imm64); hook must steal >=10,
-      // never 5. (A RIP-relative mov is also fine here — hookSteal now
+      // never 5. (A RIP-relative mov is also fine here -- hookSteal now
       // RELOCATES those: see 'relocates RIP-relative' test.)
       const MOV_RAX_IMM64 = [
         0x48, 0xb8, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22, 0x11,
@@ -131,13 +131,13 @@ describe('hook / unhook', () => {
     }
   });
 
-  test('rel8 external branch in stolen set → HOOK_RELOCATE (cannot widen)', () => {
+  test('rel8 external branch in stolen set -> HOOK_RELOCATE (cannot widen)', () => {
     using proc = Process.open(victim.pid);
     const addr = proc.alloc(0x1000, Protection.EXECUTE_READWRITE);
     try {
       const g = addr + 0x100n;
-      // EB <rel8> jmp to OUTSIDE the page then ret — rel8 can't be widened to
-      // a same-length rewrite from a far stub → still refused (MinHook-level
+      // EB <rel8> jmp to OUTSIDE the page then ret -- rel8 can't be widened to
+      // a same-length rewrite from a far stub -> still refused (MinHook-level
       // limitation; rel32 + RIP-rel DO relocate now).
       const code = Buffer.from([0xeb, 0x7e, 0x90, 0x90, 0x90, 0x90, 0xc3]);
       proc.writeBuffer(addr, code);
@@ -150,7 +150,7 @@ describe('hook / unhook', () => {
     }
   });
 
-  test('double-hook refused — same src is tracked per-Process (HOOK_ALREADY)', () => {
+  test('double-hook refused -- same src is tracked per-Process (HOOK_ALREADY)', () => {
     using proc = Process.open(victim.pid);
     const addr = proc.alloc(0x1000, Protection.EXECUTE_READWRITE);
     try {
@@ -161,7 +161,7 @@ describe('hook / unhook', () => {
       const h = proc.hook(f, g);
       // Second hook on the same src: relocation could steal our own E9
       // correctly, but the unhook ordering is unfixable (restoring h1 would
-      // orphan h2's stub) — the Process registry refuses it up front.
+      // orphan h2's stub) -- the Process registry refuses it up front.
       expect(() => proc.hook(f, g)).toThrow(/relocat|position-relative|HOOK/i);
       proc.unhook(h);
       // Re-hooking after unhook is fine again.

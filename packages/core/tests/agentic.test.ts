@@ -14,7 +14,7 @@ afterAll(() => {
 const isPreview = (v: unknown): v is WritePreview =>
   typeof v === 'object' && v !== null && 'would' in v && 'current' in v;
 
-describe('dryRun — preview-before-write', () => {
+describe('dryRun -- preview-before-write', () => {
   test('writeInt32 dryRun returns preview and does NOT write', () => {
     using proc = Process.open(victim.pid);
     const before = proc.readInt32(victim.addr.g_i32);
@@ -30,7 +30,7 @@ describe('dryRun — preview-before-write', () => {
     expect(proc.readInt32(victim.addr.g_i32)).toBe(before); // unchanged
   });
 
-  test('writeBuffer dryRun on g_buf/pattern → preview only', () => {
+  test('writeBuffer dryRun on g_buf/pattern -> preview only', () => {
     using proc = Process.open(victim.pid);
     const before = proc.readBuffer(victim.addr.g_pattern, 16);
     const p = proc.writeBuffer(victim.addr.g_pattern, Buffer.alloc(16, 0x41), {
@@ -46,7 +46,7 @@ describe('dryRun — preview-before-write', () => {
     ).toBe(0);
   });
 
-  test('writeProtected dryRun → preview, target unchanged', () => {
+  test('writeProtected dryRun -> preview, target unchanged', () => {
     using proc = Process.open(victim.pid);
     const before = proc.readInt64(victim.addr.g_i64);
     const p = proc.writeProtected(victim.addr.g_i64, Buffer.alloc(8, 0x90), {
@@ -56,7 +56,7 @@ describe('dryRun — preview-before-write', () => {
     expect(proc.readInt64(victim.addr.g_i64)).toBe(before);
   });
 
-  test('nop dryRun → would is 0x90s, no write', () => {
+  test('nop dryRun -> would is 0x90s, no write', () => {
     using proc = Process.open(victim.pid);
     const before = proc.readBuffer(victim.addr.g_array, 8);
     const p = proc.nop(victim.addr.g_array, 8, { dryRun: true });
@@ -68,7 +68,7 @@ describe('dryRun — preview-before-write', () => {
     ).toBe(0);
   });
 
-  test('patchJump dryRun → would is E9 + rel32', () => {
+  test('patchJump dryRun -> would is E9 + rel32', () => {
     using proc = Process.open(victim.pid);
     const dst = victim.addr.g_pattern + 0x1000n;
     const p = proc.patchJump(victim.addr.g_pattern, dst, { dryRun: true });
@@ -128,12 +128,12 @@ describe('write-log + undo', () => {
 
   test('undo() on unreadable-region write: recorded null, skipped, returns 0', () => {
     using proc = Process.open(victim.pid);
-    // PAGE_GUARD page — pre-write snapshot fails → bytes:null entry. The
+    // PAGE_GUARD page -- pre-write snapshot fails -> bytes:null entry. The
     // write itself also fails (WriteError), but the journal entry remains.
     try {
       proc.writeBuffer(victim.addr.g_guard + 0x1000n, Buffer.from([1, 2, 3]));
     } catch {
-      /* WriteError expected — guard page faults */
+      /* WriteError expected -- guard page faults */
     }
     const log = proc.writeLog;
     expect(log.length).toBeGreaterThan(0);
@@ -155,13 +155,13 @@ describe('write-log + undo', () => {
     proc.writeDouble(a, v0); // leave clean
   });
 
-  test('writeLog returns copies — mutating it does not corrupt the journal', () => {
+  test('writeLog returns copies -- mutating it does not corrupt the journal', () => {
     using proc = Process.open(victim.pid);
     proc.writeUInt8(victim.addr.g_u8, 0x42);
     const snap = proc.writeLog;
     expect(snap.length).toBe(1);
     snap[0]!.bytes![0] = 0xff; // mutate the returned buffer copy
-    // journal must be unaffected — undo restores the real prior byte
+    // journal must be unaffected -- undo restores the real prior byte
     proc.undo();
     expect(proc.readUInt8(victim.addr.g_u8)).toBe(0x7f);
   });

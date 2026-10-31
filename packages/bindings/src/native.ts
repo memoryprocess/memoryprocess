@@ -121,11 +121,11 @@ interface Native {
    * RELOCATE position-relative operands (rel32 branch/call immediates,
    * RIP-relative disp32) so the stolen bytes are correct when executed from
    * `stubAddr` (must be within rel32 range of `address`). External rel8/16
-   * branches (incl. LOOP/JECXZ) can't be widened — refused `HOOK_RELOCATE`,
+   * branches (incl. LOOP/JECXZ) can't be widened -- refused `HOOK_RELOCATE`,
    * like MinHook; rel8/16 internal (target inside the stolen window) and
    * all non-relative instructions copy verbatim. Without `stubAddr` any
    * position-relative instruction is refused (inspection mode).
-   * Throws `HOOK_STEAL`/`HOOK_RELOCATE` — returns the relocated bytes.
+   * Throws `HOOK_STEAL`/`HOOK_RELOCATE` -- returns the relocated bytes.
    */
   hookSteal(
     handle: number,
@@ -134,7 +134,7 @@ interface Native {
     stubAddr?: number | bigint,
   ): { length: number; bytes: Buffer; original: Buffer };
   /**
-   * Per-region VirtualProtectEx→write→restore across the whole write span —
+   * Per-region VirtualProtectEx->write->restore across the whole write span --
    * records each region's real old protection before writing, restores each
    * individually. `restored=false` means part of the span is left weakened.
    */
@@ -144,7 +144,7 @@ interface Native {
     buffer: Buffer,
     protection?: number,
   ): { ok: boolean; restored: boolean; protected: boolean };
-  /** Current thread id (TID) — used to refuse self-suspend. */
+  /** Current thread id (TID) -- used to refuse self-suspend. */
   currentThreadId(): number;
   suspendProcess(pid: number): boolean;
   resumeProcess(pid: number): boolean;
@@ -188,7 +188,7 @@ const candidates = [
 export const native: Native = (() => {
   // Keep the last real load error: a .node that EXISTS but fails to load
   // (missing VC++ CRT, arch or N-API mismatch, wrong Node ABI) must not be
-  // reported as "not found" — surface the underlying loader message.
+  // reported as "not found" -- surface the underlying loader message.
   let lastErr: unknown;
   for (const path of candidates) {
     try {
