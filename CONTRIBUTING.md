@@ -39,8 +39,8 @@ bun run test           # runs the suite (spawns test victim processes)
 ```
 packages/bindings   native .node N-API layer (src/native.ts interface)
 packages/core       Process class + structs.ts (Address/Entity/Offsets)
-packages/cli        mproc CLI (17 commands, --json, attach session)
-packages/mcp        MCP stdio server (17 tools + eval_js, --no-eval mode)
+packages/cli        mproc CLI (18 commands, --json, attach session)
+packages/mcp        MCP stdio server (18 tools + eval_js, --no-eval mode)
 ```
 
 `bindings` is the raw native; `core` is the engine; `cli`/`mcp` consume `core`.

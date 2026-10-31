@@ -23,7 +23,7 @@ dependency order `bindings -> core -> cli -> mcp`).
   coordinated cross-repo PRs and risk a half-published state (core live
   without its bindings). One repo + one sequential publish job makes a
   partial release structurally impossible.
-- _*workspace:* in dev._* Bun resolves `workspace:*` to `packages/*` directly,
+- _`workspace:*` in dev._ Bun resolves `workspace:*` to `packages/*` directly,
   so the dev loop needs no published artifacts; the publish step rewrites it
   to `^<version>` before `npm publish`.
 - **One CI gate.** verify + packaged + compat(22/24/25/26) covers the whole

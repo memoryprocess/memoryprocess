@@ -4,12 +4,12 @@
 
 ```
 +------------------+
-| @memoryprocess/  |   17 coarse tools + eval_js + dryRun/undo (agents)
+| @memoryprocess/  |   18 coarse tools + eval_js + dryRun/undo (agents)
 |      mcp         |
 +------------------+
 +------------------+
-| @memoryprocess/  |   mproc -- 17 commands: scan/read/write/pointers/
-|      cli         |   watch/freeze/undo/attach (--json)
+| @memoryprocess/  |   mproc -- 18 commands: scan/read/write/pointers/
+|      cli         |   watch/freeze/undo/entities + attach (--json)
 +------------------+
          | depends on
 +------------------+
@@ -18,7 +18,7 @@
 +------------------+
          | workspace:*
 +------------------+
-| @memoryprocess/  |   .node N-API -- 38 stateless free functions
+| @memoryprocess/  |   .node N-API -- 35 stateless free functions
 |     bindings     |   (handle/pid/tid args, no shared native state)
 +------------------+
 ```
@@ -39,7 +39,7 @@ The `.node` is a compiled binary tied to the Node ABI that built it. Keeping it 
 
 ## Native boundary
 
-`bindings` exports 38 stateless functions on one `.node` -- split into `memory.cc` (r/w/readSafe), `process.cc` (open/threads/context/suspend), `module.cc` (modules/inject/eject/dump/hookSteal/writeProtected/findWhatWrites), `pattern.cc` (AOB + value scan AsyncWorkers), `hde/` (vendored HDE64 decoder). No shared global state -- every call takes the handle/pid it operates on, so there's no cross-call coupling to split further.
+`bindings` exports 35 stateless functions on one `.node` -- split into `memory.cc` (r/w/readSafe), `process.cc` (open/threads/context/suspend), `module.cc` (modules/inject/eject/dump/hookSteal/writeProtected/findWhatWrites), `pattern.cc` (AOB + value scan AsyncWorkers), `hde/` (vendored HDE64 decoder). No shared global state -- every call takes the handle/pid it operates on, so there's no cross-call coupling to split further.
 
 ## Release model
 

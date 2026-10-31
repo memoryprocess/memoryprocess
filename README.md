@@ -8,12 +8,12 @@ A Windows process-memory toolkit for Node.js / Bun / Deno -- read, write, scan, 
 
 ## Packages
 
-| Package                                        | What it is                                                                                                                                                  |
-| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@memoryprocess/bindings`](packages/bindings) | Raw N-API native layer -- the `.node` binary (38 stateless process-memory functions)                                                                        |
-| [`@memoryprocess/core`](packages/core)         | The engine -- `Process` class, typed r/w, CE-style scanning, hooks, inject, threads, findWhatWrites, remote structs (`Address`/`Entity`/`Offsets`)          |
-| [`@memoryprocess/cli`](packages/cli)           | `mproc` -- CLI for interactive/agentic use: 17 commands (`scan`/`scan-pattern`/`next`/`read`/`write`/`pointers`/`watch`/`freeze`/`undo`/`attach`, `--json`) |
-| [`@memoryprocess/mcp`](packages/mcp)           | MCP server exposing the toolkit to LLM agents (17 coarse tools + `eval_js` escape hatch, `--no-eval` restricted mode)                                       |
+| Package                                        | What it is                                                                                                                                                                       |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@memoryprocess/bindings`](packages/bindings) | Raw N-API native layer -- the `.node` binary (35 stateless process-memory functions)                                                                                             |
+| [`@memoryprocess/core`](packages/core)         | The engine -- `Process` class, typed r/w, CE-style scanning, hooks, inject, threads, findWhatWrites, remote structs (`Address`/`Entity`/`Offsets`)                               |
+| [`@memoryprocess/cli`](packages/cli)           | `mproc` -- CLI for interactive/agentic use: 18 commands + `attach` session (`scan`/`scan-pattern`/`next`/`read`/`write`/`pointers`/`watch`/`freeze`/`undo`/`entities`, `--json`) |
+| [`@memoryprocess/mcp`](packages/mcp)           | MCP server exposing the toolkit to LLM agents (18 coarse tools + `eval_js` escape hatch, `--no-eval` restricted mode)                                                            |
 
 `cli` and `mcp` depend on `core`; `core` depends on `bindings`.
 
