@@ -1,6 +1,6 @@
 {
   "name": "@memoryprocess/core",
-  "version": "0.0.2-dev.2",
+  "version": "0.0.3-beta.1",
   "description": "Windows process-memory engine: typed read/write, CE-style scanning, MinHook-grade hooks, inject, threads, findWhatWrites, remote structs (Address/Entity/Offsets). Built on @memoryprocess/bindings.",
   "type": "module",
   "packageManager": "bun@1.4.4",
