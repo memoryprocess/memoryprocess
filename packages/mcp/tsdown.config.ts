@@ -6,7 +6,7 @@ export default defineConfig({
   dts: false,
   outDir: 'dist',
   clean: true,
-  // Core, the MCP SDK and zod are real dependencies the consumer installs — never bundled.
+  // Core, the MCP SDK and zod are real dependencies the consumer installs - never bundled.
   external: [
     /\.node$/,
     '@memoryprocess/core',

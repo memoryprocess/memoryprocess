@@ -1,4 +1,4 @@
-// Perf audit bench — native layer + HL layer (readMany, Entity, resolvePointer,
+// Perf audit bench - native layer + HL layer (readMany, Entity, resolvePointer,
 // watch, modules). Reuses an already-running victim.exe (prints PID + &g_*).
 // Run: taskkill /F /IM victim.exe ; start victim.exe ; node scripts/bench-hl.mjs
 import { spawn, execSync } from 'node:child_process';
@@ -61,7 +61,7 @@ timed('native.readBuffer 4KB', () =>
 timed('native.readSafe 4KB', () =>
   native.readSafe(handle, addr.g_bigbuf, 4096),
 );
-// 5. modules() — Toolhelp snapshot cost
+// 5. modules() - Toolhelp snapshot cost
 timed('proc.modules() (toolhelp)', () => proc.modules());
 // 6. module('victim.exe')
 timed("proc.module('victim.exe')", () => proc.module('victim.exe'));
@@ -73,7 +73,7 @@ timed('proc.regions() full VA walk', () => proc.regions(), 1000);
 timed('resolvePointer 3-deep', () =>
   proc.resolvePointer(addr.g_ppp, [0, 0, 0]),
 );
-// 10. readMany — 4 addresses scattered on ONE page (g_i32..g_wstr ~same page)
+// 10. readMany - 4 addresses scattered on ONE page (g_i32..g_wstr ~same page)
 timed('readMany 4 reqs same page', () =>
   proc.readMany([
     { addr: addr.g_i32, type: 'int32' },
@@ -82,7 +82,7 @@ timed('readMany 4 reqs same page', () =>
     { addr: addr.g_str, type: 'pointer' },
   ]),
 );
-// 11. readMany — 4 reqs on DIFFERENT pages (g_i32, g_bigbuf, g_entity, g_ptr, g_guard_end)
+// 11. readMany - 4 reqs on DIFFERENT pages (g_i32, g_bigbuf, g_entity, g_ptr, g_guard_end)
 timed('readMany 4 pages', () =>
   proc.readMany([
     { addr: addr.g_i32, type: 'int32' },
@@ -91,7 +91,7 @@ timed('readMany 4 pages', () =>
     { addr: addr.g_ptr, type: 'pointer' },
   ]),
 );
-// 12. Entity.snapshot — entity schema covering g_entity (packed struct)
+// 12. Entity.snapshot - entity schema covering g_entity (packed struct)
 const schema = {
   i32: [0, 'int32'],
   f32: [4, 'float'],
@@ -99,7 +99,7 @@ const schema = {
 };
 const ent = proc.entity(addr.g_entity, schema);
 timed('entity.snapshot (3 fields)', () => ent.snapshot());
-// 13. Address resolve: 'victim.exe+0x...' — module lookup per construction
+// 13. Address resolve: 'victim.exe+0x...' - module lookup per construction
 const p = proc.pointers({ x: ['victim.exe+0x0', 0] });
 timed('Address construction + resolve (module)', () =>
   proc.addr('victim.exe+0x0', 0).resolve(),
@@ -120,7 +120,7 @@ timed('proc.writeInt32', () => proc.writeInt32(addr.g_i32, 42));
     `${ms.toFixed(1)}ms ${hits.length} hits`,
   ]);
 }
-// 16. scanValue int32=42 over a 64MB heap region? skip — victim too small. Instead:
+// 16. scanValue int32=42 over a 64MB heap region? skip - victim too small. Instead:
 // full writable-region value scan wall time for a unique value.
 {
   const t0 = performance.now();

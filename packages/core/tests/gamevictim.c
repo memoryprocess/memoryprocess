@@ -1,4 +1,4 @@
-// Simulated game engine — heap-allocated, polymorphic entities, a ticking
+// Simulated game engine - heap-allocated, polymorphic entities, a ticking
 // simulation thread, an orbiting camera (view matrix), and a deep pointer
 // chain. Exercises memoryprocess v2's cheat-dev layer (addr chains,
 // entityList, Entity snapshots, Offsets, findPointersTo, readSafe).
@@ -28,7 +28,7 @@
 #define MAX_ENTITIES   16
 #define ENT_ARRAY_CAP  64
 
-/* Polymorphic Entity — shared vtable in .rdata, extra data appended as an
+/* Polymorphic Entity - shared vtable in .rdata, extra data appended as an
  * untyped subclass blob (subclasses only differ in appended field content). */
 typedef void *EntityVTable[3];
 typedef struct Entity {
@@ -42,7 +42,7 @@ typedef struct Entity {
   uint64_t      flags;      /* +0x44  bit 0 = alive */
   wchar_t       displayName[32]; /* +0x50  UTF-16 (NUL-terminated) */
   struct Inventory *inv;    /* +0x90 */
-  /* +0x98 subclass blob — EntityPlayer, EntityNPC, EntityItem,
+  /* +0x98 subclass blob - EntityPlayer, EntityNPC, EntityItem,
    * EntityProjectile, EntityVehicle, EntityProp all start here but differ
    * in content (ammo, itemId, teamId...). */
 } Entity;
@@ -94,7 +94,7 @@ typedef struct GameEngine {
   NetworkState *net;        /* +0x30 */
 } GameEngine;
 
-/* vtable — three real function pointers (dtor/getName/getHealth), kept in
+/* vtable - three real function pointers (dtor/getName/getHealth), kept in
  * .rdata like a real C++ vtable. */
 static void        e_dtor(void)    {}
 static const char *e_getName(void) { return "Entity"; }
@@ -125,7 +125,7 @@ static void fillWide(const char *src, wchar_t *dst, size_t dstChars) {
 
 static Entity *spawnEntity(const char *type, int kind) {
   /* kind selects a "subclass": 0 Player, 1 NPC, 2 Item, 3 Projectile,
-   * 4 Vehicle, 5 Prop, 6 Drone, 7 Turret — all share the Entity vtable and
+   * 4 Vehicle, 5 Prop, 6 Drone, 7 Turret - all share the Entity vtable and
    * append a distinct subclass blob after +0x98 (total 0xB0 bytes). */
   Entity *e = (Entity *)calloc(1, 0xB0);
   snprintf(e->name, 32, "%s_%03d", type, g_nextId);
@@ -143,7 +143,7 @@ static Entity *spawnEntity(const char *type, int kind) {
   inv->money   = 100.0f + (float)(rand() % 900);
   for (int i = 0; i < 16; i++) inv->slots[i] = rand() % 99;
   e->inv       = inv;
-  /* subclass blob at +0x98 — kind-discriminating data so derived-class
+  /* subclass blob at +0x98 - kind-discriminating data so derived-class
    * fields differ per type (like real C++ subclass layouts). */
   unsigned char *sub = (unsigned char *)e + 0x98;
   memset(sub, kind + 1, 8);
@@ -212,7 +212,7 @@ static DWORD WINAPI simThread(LPVOID _) {
   return 0;
 }
 
-/* Code-page reference to g_engine — "48 8B 05 <rel32>" (mov rax,[rip+x]).
+/* Code-page reference to g_engine - "48 8B 05 <rel32>" (mov rax,[rip+x]).
  * Real function, called once, so the bytes actually live in .text and
  * scanUnique finds exactly one hit. */
 static GameEngine *getEngine(void) { return (GameEngine *)g_engine; }

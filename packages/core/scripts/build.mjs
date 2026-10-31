@@ -27,7 +27,7 @@ const nodeGyp = () => {
 const t = (label, fn) => {
   const s = performance.now();
   fn();
-  console.log(`✓ ${label} [${Math.round(performance.now() - s)}ms]`);
+  console.log(`[ok] ${label} [${Math.round(performance.now() - s)}ms]`);
 };
 
 try {
@@ -38,7 +38,7 @@ try {
 
   mkdirSync(join(root, 'dist'), { recursive: true });
 
-  // tsdown cleans dist/ before writing — run it BEFORE copying the .node
+  // tsdown cleans dist/ before writing - run it BEFORE copying the .node
   t('tsdown bundle', () =>
     run(process.execPath, [
       tool('tsdown', 'dist/run.mjs'),
@@ -74,8 +74,8 @@ try {
   t('clean build dir', () =>
     rmSync(join(root, 'build'), { recursive: true, force: true }),
   );
-  console.log('✓ build complete');
+  console.log('[ok] build complete');
 } catch (e) {
-  console.error('✗ build failed:', e.message);
+  console.error('[fail] build failed:', e.message);
   process.exit(1);
 }

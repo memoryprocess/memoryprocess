@@ -1,6 +1,6 @@
 // Build ONLY the native .node via node-gyp (no tsdown/tsc bundle).
 // Used by the compat matrix so each Node version links against its own
-// node.lib — a .node built against Node 24's node.lib can crash on Node 20.
+// node.lib - a .node built against Node 24's node.lib can crash on Node 20.
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -23,6 +23,6 @@ try {
   if (!existsSync(out)) throw new Error('memoryprocess.node not produced');
   console.log('built', out);
 } catch (e) {
-  console.error('✗ native build failed:', e.message);
+  console.error('[fail] native build failed:', e.message);
   process.exit(1);
 }

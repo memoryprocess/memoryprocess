@@ -61,7 +61,7 @@ static std::string WideToUtf8(const wchar_t* w) {
 }
 
 std::vector<ModuleInfo> GetModules(HANDLE /*proc*/, DWORD pid) {
-  // Toolhelp snapshot — unlike EnumProcessModulesEx this lists BOTH 64-bit and
+  // Toolhelp snapshot - unlike EnumProcessModulesEx this lists BOTH 64-bit and
   // 32-bit (WoW64) modules from a 64-bit reader, has no fixed-cap buffer, and
   // hands us base+size+path in one shot.
   std::vector<ModuleInfo> out;

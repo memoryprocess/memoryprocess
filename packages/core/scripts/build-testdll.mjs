@@ -11,7 +11,7 @@ const out = join(root, 'tests', 'testdll.dll');
 
 const vswhere = `${process.env['ProgramFiles(x86)']}\\Microsoft Visual Studio\\Installer\\vswhere.exe`;
 if (!existsSync(vswhere)) {
-  console.error('vswhere not found — Visual Studio Build Tools required');
+  console.error('vswhere not found - Visual Studio Build Tools required');
   process.exit(1);
 }
 const vsPath = spawnSync(

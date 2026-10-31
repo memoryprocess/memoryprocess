@@ -10,7 +10,7 @@ namespace mp {
 struct PatternByte { std::uint8_t value; bool wildcard; };
 
 // Parse a hex-byte pattern ("DE AD ?? EF"). Tokens must be 1-2 hex digits or
-// ?/?? wildcards. Returns nullopt on ANY malformed token — the caller turns
+// ?/?? wildcards. Returns nullopt on ANY malformed token - the caller turns
 // this into a JS error; no C++ exception can cross the N-API boundary.
 static std::optional<std::vector<PatternByte>> ParsePattern(const std::string& pat) {
   std::vector<PatternByte> out;
@@ -60,7 +60,7 @@ static inline bool RegionWritable(const MEMORY_BASIC_INFORMATION& mbi) {
 // Async region-scan worker shared by the AOB scan and the typed-value scan.
 // Runs with a PRIVATE least-privilege process handle opened from the pid (a
 // JS-side close() can never invalidate it mid-scan), and scans each committed
-// range with a rolling window — 64KB chunks plus a (needle-1)-byte overlap —
+// range with a rolling window - 64KB chunks plus a (needle-1)-byte overlap - 
 // so multi-hundred-MB regions never accumulate in memory.
 class ScanWorker : public Napi::AsyncWorker {
 public:
@@ -84,7 +84,7 @@ public:
     if (!proc_) { SetError("OpenProcess failed (pid gone or access denied)"); return; }
 
     // QA4 lifecycle-M1: a C++ exception (bad_alloc in hits_ growth or the
-    // per-chunk vector) escaping Execute() used to skip CloseHandle — a real
+    // per-chunk vector) escaping Execute() used to skip CloseHandle - a real
     // handle leak under memory pressure, every scan call. Guard all exits.
     try {
       const std::uintptr_t limit = end_ ? end_ : USER_TOP;
@@ -156,7 +156,7 @@ private:
       if (!ReadProcessMemory(proc_, reinterpret_cast<LPCVOID>(pos),
                              chunk.data(), toRead, &got) || got == 0) {
         tail.clear(); // VA discontinuity: a match can't straddle a failed read
-        // Don't blindly skip the whole 64KB chunk — a single inaccessible
+        // Don't blindly skip the whole 64KB chunk - a single inaccessible
         // page inside a readable region would drop signatures CE finds.
         // Re-query the sub-region at `pos`: skip only up to its end, or just
         // one 4KB page when the sub-region still claims to be readable (the
@@ -185,7 +185,7 @@ private:
       win.insert(win.end(), tail.end() - static_cast<std::ptrdiff_t>(keep), tail.end());
       win.insert(win.end(), chunk.begin(), chunk.end());
       const std::uintptr_t winBase = pos - keep;
-      // match starts that touch ≥1 new byte: i >= keep - overlap (clamped 0)
+      // match starts that touch >=1 new byte: i >= keep - overlap (clamped 0)
       const std::size_t firstI = keep > overlap ? keep - overlap : 0;
       if (win.size() >= patLen) {
         const std::size_t lastI = win.size() - patLen; // inclusive

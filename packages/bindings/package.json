@@ -31,7 +31,7 @@
     "clean": "node scripts/clean.mjs",
     "check": "bun check",
     "typecheck": "tsc --noEmit",
-    "prebuild:all": "prebuildify --all --napi",
+    "prebuild:all": "prebuildify --napi -t 22.17.0 -t 24.4.0 -t 25.0.0 -t 26.0.0",
     "prepublishOnly": "npm run build && npm run prebuild:all"
   },
   "repository": {

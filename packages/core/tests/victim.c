@@ -75,7 +75,7 @@ int main(void) {
     &g_pattern,&g_ptr,&g_pp,&g_ppp,&g_entity,&g_array,&g_bigbuf,&g_counter);
   printf("&g_i64=%p\n", &g_i64); // repeat for parser
 
-  // PAGE_GUARD region: 2 pages — first page committed RW filled with 0xC5,
+  // PAGE_GUARD region: 2 pages - first page committed RW filled with 0xC5,
   // second page RW + PAGE_GUARD (unreadable via ReadProcessMemory).
   {
     LPVOID guard = VirtualAlloc(NULL, 0x2000, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
