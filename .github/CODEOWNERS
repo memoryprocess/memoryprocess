@@ -1,0 +1,22 @@
+# CODEOWNERS -- required reviewers per path.
+# Anything that can break CI, publish to npm, or change release/versioning
+# policy needs @JoShMiQueL's approval before merge. Code in packages/src
+# stays unowned so normal changes flow without a review bottleneck.
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# CI + release pipeline -- can publish to npm or change the build.
+.github/workflows/    @JoShMiQueL
+
+# release-please manifest + config -- decides versions, channels, tags.
+release-please-config.json
+.release-please-manifest.json   @JoShMiQueL
+
+# Native build config -- the Node-26 thin-LTO workaround lives here;
+# a bad edit breaks the .node on modern Node.
+**/binding.gyp    @JoShMiQueL
+
+# Package manifests -- deps, publish files, scripts, bin, exports.
+**/package.json    @JoShMiQueL
+
+# Release policy doc.
+docs/releasing.md    @JoShMiQueL
