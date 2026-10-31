@@ -1,17 +1,15 @@
 name: Publish
 
-# Publishes released packages to npm. Triggered by release-please creating a
-# per-package tag (<pkg>@x.y.z). The dist-tag is derived from the VERSION:
-# prerelease (-dev/-next/-beta) -> that channel; stable -> `latest`.
-# `latest` only ever fires on a maintainer-authored `release-as` stable version --
-# see docs/releasing.md "Promoting dev -> latest".
+# Publishes released packages to npm. Fires on the GitHub *Release* event
+# (release-please publishes a release per package tag <pkg>@x.y.z) -- this is
+# the canonical trigger for "publish on release", and unlike `on.push.tags` it
+# can never fire on a plain branch push. The dist-tag is derived from the
+# VERSION in the release tag: prerelease (-dev/-next/-beta/-alpha) -> that
+# channel; stable -> `latest`. `latest` only ever fires on a
+# maintainer-authored `release-as` stable version -- see docs/releasing.md.
 on:
-  push:
-    tags:
-      - 'bindings@*'
-      - 'core@*'
-      - 'cli@*'
-      - 'mcp@*'
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -30,7 +28,9 @@ jobs:
           - { package: core }
           - { package: cli }
           - { package: mcp }
-    if: startsWith(github.ref_name, format('{0}@', matrix.package))
+    # Only the package whose release tag fired the run publishes.
+    # github.event.release.tag_name is like `bindings@0.0.3-beta.1`.
+    if: startsWith(github.event.release.tag_name, format('{0}@', matrix.package))
     steps:
       - uses: actions/checkout@v7
         with:
@@ -52,7 +52,7 @@ jobs:
         id: chan
         shell: pwsh
         run: |
-          $ver = '${{ github.ref_name }}' -replace '^[^@]+@', ''
+          $ver = '${{ github.event.release.tag_name }}' -replace '^[^@]+@', ''
           $channel = 'latest'
           if ($ver -match '-(dev|next|beta|alpha)') { $channel = $Matches[1] }
           "channel=$channel" >> $env:GITHUB_OUTPUT
