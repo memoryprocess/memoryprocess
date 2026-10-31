@@ -1,9 +1,6 @@
 {
   "release-type": "node",
-  "versioning": "prerelease",
-  "release-as": "0.1.0-beta.0",
-  "prerelease-type": "beta",
-  "prerelease": true,
+  "release-as": "1.0.0",
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
   "separate-pull-requests": true,
