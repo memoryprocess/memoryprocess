@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.0-beta.0](https://github.com/memoryprocess/memoryprocess/compare/core@0.0.3-beta.9...core@0.1.0-beta.0) (2026-10-31)
+
+### Bug Fixes
+
+- **bindings:** arg-type validation + int64 write path ([#64](https://github.com/memoryprocess/memoryprocess/issues/64)) ([dc4bca5](https://github.com/memoryprocess/memoryprocess/commit/dc4bca590c2cde3992285812f679c8045a80966f))
+- **core:** structs+process audit findings ([#66](https://github.com/memoryprocess/memoryprocess/issues/66)) ([7366be5](https://github.com/memoryprocess/memoryprocess/commit/7366be5e8ed441c58f47cae55c7f23488a4edc9e))
+- **pkg:** publish hygiene -- LICENSE/README/files/exports ([#68](https://github.com/memoryprocess/memoryprocess/issues/68)) ([1c89c49](https://github.com/memoryprocess/memoryprocess/commit/1c89c4969cce67c7ec71176fce1e4f6c7cc6e84f))
+
 ## [0.0.3-beta.9](https://github.com/memoryprocess/memoryprocess/compare/core@0.0.3-beta.8...core@0.0.3-beta.9) (2026-10-31)
 
 ### Features
