@@ -1,57 +1,58 @@
-{
-  "name": "@memoryprocess/mcp",
-  "version": "0.1.0-beta.0",
-  "description": "MCP server exposing the memoryprocess toolkit to LLM agents - the primary agentic surface.",
-  "type": "module",
-  "packageManager": "bun@1.4.4",
-  "bin": {
-    "memoryprocess-mcp": "./dist/server.mjs"
-  },
-  "exports": {
-    ".": "./dist/server.mjs"
-  },
-  "files": [
-    "dist",
-    "LICENSE",
-    "README.md"
-  ],
-  "os": [
-    "win32"
-  ],
-  "engines": {
-    "node": ">=22"
-  },
-  "scripts": {
-    "build": "tsdown",
-    "check": "bun check",
-    "typecheck": "tsc --noEmit"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/memoryprocess/memoryprocess.git",
-    "directory": "packages/mcp"
-  },
-  "author": "JoShMiQueL",
-  "license": "MIT",
-  "keywords": [
-    "mcp",
-    "model-context-protocol",
-    "memory",
-    "process",
-    "windows",
-    "reverse-engineering",
-    "llm",
-    "agent"
-  ],
-  "dependencies": {
-    "@memoryprocess/core": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.32.2",
-    "zod": "^4.6.7"
-  },
-  "devDependencies": {
-    "@types/bun": "^1.4.4"
-  }
+﻿{
+    "name":  "@memoryprocess/mcp",
+    "version":  "0.1.0-beta.0",
+    "description":  "MCP server exposing the memoryprocess toolkit to LLM agents - the primary agentic surface.",
+    "type":  "module",
+    "packageManager":  "bun@1.4.4",
+    "bin":  {
+                "memoryprocess-mcp":  "./dist/server.mjs"
+            },
+    "exports":  {
+                    ".":  "./dist/server.mjs"
+                },
+    "files":  [
+                  "dist",
+                  "LICENSE",
+                  "README.md"
+              ],
+    "os":  [
+               "win32"
+           ],
+    "engines":  {
+                    "node":  "\u003e=22"
+                },
+    "scripts":  {
+                    "build":  "tsdown",
+                    "check":  "bun check",
+                    "typecheck":  "tsc --noEmit"
+                },
+    "publishConfig":  {
+                          "access":  "public"
+                      },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/memoryprocess/memoryprocess.git",
+                       "directory":  "packages/mcp"
+                   },
+    "author":  "JoShMiQueL",
+    "license":  "MIT",
+    "keywords":  [
+                     "mcp",
+                     "model-context-protocol",
+                     "memory",
+                     "process",
+                     "windows",
+                     "reverse-engineering",
+                     "llm",
+                     "agent"
+                 ],
+    "dependencies":  {
+                         "@memoryprocess/core":  "workspace:*",
+                         "@modelcontextprotocol/sdk":  "^1.32.2",
+                         "zod":  "^4.6.7"
+                     },
+    "devDependencies":  {
+                            "@types/bun":  "^1.4.4"
+                        },
+    "_release_1_0_0":  true
 }

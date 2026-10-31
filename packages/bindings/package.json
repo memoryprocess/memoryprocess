@@ -1,56 +1,57 @@
-{
-  "name": "@memoryprocess/bindings",
-  "version": "0.1.0-beta.0",
-  "description": "Native N-API bindings for Windows process memory access (read/write, VirtualQueryEx, pattern scan, thread ops). The .node binary layer of the memoryprocess toolkit.",
-  "type": "module",
-  "packageManager": "bun@1.4.4",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "bun": "./src/index.ts",
-      "development": "./src/index.ts",
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
-  "files": [
-    "dist",
-    "src",
-    "prebuilds",
-    "binding.gyp",
-    "native",
-    "LICENSE",
-    "README.md"
-  ],
-  "os": [
-    "win32"
-  ],
-  "engines": {
-    "node": ">=22"
-  },
-  "scripts": {
-    "build": "node scripts/build.mjs",
-    "clean": "node scripts/clean.mjs",
-    "check": "bun check",
-    "typecheck": "tsc --noEmit",
-    "prebuild:all": "prebuildify --napi -t 22.17.0 -t 24.4.0 -t 25.0.0 -t 26.0.0"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/memoryprocess/memoryprocess.git",
-    "directory": "packages/bindings"
-  },
-  "author": "JoShMiQueL",
-  "license": "MIT",
-  "dependencies": {
-    "node-addon-api": "8.3.1",
-    "node-gyp-build": "4.8.4"
-  },
-  "trustedDependencies": [
-    "node-gyp-build"
-  ]
+﻿{
+    "name":  "@memoryprocess/bindings",
+    "version":  "0.1.0-beta.0",
+    "description":  "Native N-API bindings for Windows process memory access (read/write, VirtualQueryEx, pattern scan, thread ops). The .node binary layer of the memoryprocess toolkit.",
+    "type":  "module",
+    "packageManager":  "bun@1.4.4",
+    "main":  "dist/index.js",
+    "types":  "dist/index.d.ts",
+    "exports":  {
+                    ".":  {
+                              "bun":  "./src/index.ts",
+                              "development":  "./src/index.ts",
+                              "types":  "./dist/index.d.ts",
+                              "import":  "./dist/index.js"
+                          }
+                },
+    "files":  [
+                  "dist",
+                  "src",
+                  "prebuilds",
+                  "binding.gyp",
+                  "native",
+                  "LICENSE",
+                  "README.md"
+              ],
+    "os":  [
+               "win32"
+           ],
+    "engines":  {
+                    "node":  "\u003e=22"
+                },
+    "scripts":  {
+                    "build":  "node scripts/build.mjs",
+                    "clean":  "node scripts/clean.mjs",
+                    "check":  "bun check",
+                    "typecheck":  "tsc --noEmit",
+                    "prebuild:all":  "prebuildify --napi -t 22.17.0 -t 24.4.0 -t 25.0.0 -t 26.0.0"
+                },
+    "publishConfig":  {
+                          "access":  "public"
+                      },
+    "repository":  {
+                       "type":  "git",
+                       "url":  "git+https://github.com/memoryprocess/memoryprocess.git",
+                       "directory":  "packages/bindings"
+                   },
+    "author":  "JoShMiQueL",
+    "license":  "MIT",
+    "dependencies":  {
+                         "node-addon-api":  "8.3.1",
+                         "node-gyp-build":  "4.8.4"
+                     },
+    "trustedDependencies":  [
+                                "node-gyp-build"
+                            ],
+    "_release_1_0_0":  true
 }
