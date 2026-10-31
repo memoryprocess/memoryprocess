@@ -102,7 +102,7 @@ jobs:
         run: |
           foreach ($pkg in $env:PKGS.Split(' ')) {
             Push-Location "packages/$pkg"
-            bun publish --access public --tag ${{ steps.chan.outputs.channel }} --provenance
+            bun publish --access public --tag ${{ steps.chan.outputs.channel }}
             if ($LASTEXITCODE -ne 0) { throw "bun publish failed for $pkg" }
             Pop-Location
             echo "published $pkg @ ${{ steps.chan.outputs.channel }}"
