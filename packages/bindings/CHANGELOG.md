@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.0.3-beta.6](https://github.com/memoryprocess/memoryprocess/compare/bindings@0.0.3-beta.5...bindings@0.0.3-beta.6) (2026-10-31)
+
+### Features
+
+- monorepo scaffold — @memoryprocess/{bindings,core,cli,mcp} ([a8a9d77](https://github.com/memoryprocess/memoryprocess/commit/a8a9d77287c1a78365c6e0730fdc392c6854aab8))
+- publish-prep — dev-shim→real import, dual-condition exports, dist builds ([#8](https://github.com/memoryprocess/memoryprocess/issues/8)) ([fe39054](https://github.com/memoryprocess/memoryprocess/commit/fe3905464ecc7f41eed5ed6ebc94e3db5b8e293f))
+- **release:** publish inside release-please.yml (kills phantom runs + GITHUB_TOKEN wall) ([#25](https://github.com/memoryprocess/memoryprocess/issues/25)) ([03748db](https://github.com/memoryprocess/memoryprocess/commit/03748dbe7bc3d2137e35b0cf51c39e8f3d4df7ae))
+
+### Bug Fixes
+
+- purge mojibake - sanitize all .ts sources/tests to pure ASCII ([#23](https://github.com/memoryprocess/memoryprocess/issues/23)) ([6a30817](https://github.com/memoryprocess/memoryprocess/commit/6a308175572a5c096c4291588bd8972b1a57e1f1))
+- **release:** bun publish so workspace:* deps rewrite ([#33](https://github.com/memoryprocess/memoryprocess/issues/33)) ([7448c94](https://github.com/memoryprocess/memoryprocess/commit/7448c94ce758cf7f9f318109e806a586754035c7))
+- **release:** drop --provenance from bun publish ([#36](https://github.com/memoryprocess/memoryprocess/issues/36)) ([b71c920](https://github.com/memoryprocess/memoryprocess/commit/b71c920cfe48fce73f921a4208e6ac486ee23d75))
+- **release:** PATH for prebuildify's node-gyp ([#43](https://github.com/memoryprocess/memoryprocess/issues/43)) ([02c734b](https://github.com/memoryprocess/memoryprocess/commit/02c734be25a02f6a26dff3b72b690c98b4bc1dd2))
+- **release:** prebuild bindings as explicit CI step ([#40](https://github.com/memoryprocess/memoryprocess/issues/40)) ([66e08a1](https://github.com/memoryprocess/memoryprocess/commit/66e08a127bb57652cdf4b8c949c3f1a6465556cf))
+- sanitize remaining non-ASCII (round 2) + harden release pipeline ([#30](https://github.com/memoryprocess/memoryprocess/issues/30)) ([db192a6](https://github.com/memoryprocess/memoryprocess/commit/db192a601ed0963d9f351c90525ca8cfc2fe459d))
+
+### Reverts
+
+- undo direct-push duplicate-if fix ([#26](https://github.com/memoryprocess/memoryprocess/issues/26)) ([5e6d708](https://github.com/memoryprocess/memoryprocess/commit/5e6d7083c8af2412385f8be399780f305eb59c77))
+
 ## [0.0.3-beta.5](https://github.com/memoryprocess/memoryprocess/compare/bindings@0.0.3-beta.4...bindings@0.0.3-beta.5) (2026-10-31)
 
 ### Features
