@@ -39,7 +39,6 @@ jobs:
   # maintainer-authored `release-as` stable version -- docs/releasing.md.
   publish:
     needs: release-please
-    if: needs.release-please.outputs.releases == 'true'
     name: publish ${{ matrix.package }}
     runs-on: windows-latest
     timeout-minutes: 20
@@ -51,12 +50,14 @@ jobs:
           - { package: core }
           - { package: cli }
           - { package: mcp }
-    # Only the package that actually got a release tag publishes.
+    # Runs only when release-please cut a release AND the tag belongs to
+    # this matrix package (its per-path output is non-empty).
     if: >-
-      (matrix.package == 'bindings' && needs.release-please.outputs.tag_bindings != '') ||
-      (matrix.package == 'core'     && needs.release-please.outputs.tag_core != '') ||
-      (matrix.package == 'cli'      && needs.release-please.outputs.tag_cli != '') ||
-      (matrix.package == 'mcp'      && needs.release-please.outputs.tag_mcp != '')
+      needs.release-please.outputs.releases == 'true' &&
+      ((matrix.package == 'bindings' && needs.release-please.outputs.tag_bindings != '') ||
+       (matrix.package == 'core'     && needs.release-please.outputs.tag_core != '') ||
+       (matrix.package == 'cli'      && needs.release-please.outputs.tag_cli != '') ||
+       (matrix.package == 'mcp'      && needs.release-please.outputs.tag_mcp != ''))
     steps:
       - uses: actions/checkout@v7
         with:
