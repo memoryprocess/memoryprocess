@@ -1,6 +1,6 @@
 {
   "name": "@memoryprocess/bindings",
-  "version": "0.0.2-dev.1",
+  "version": "0.0.2-dev.2",
   "description": "Native N-API bindings for Windows process memory access (read/write, VirtualQueryEx, pattern scan, thread ops). The .node binary layer of the memoryprocess toolkit.",
   "type": "module",
   "packageManager": "bun@1.4.4",
